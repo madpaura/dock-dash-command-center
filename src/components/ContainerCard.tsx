@@ -40,17 +40,17 @@ export const ContainerCard: React.FC<ContainerCardProps> = ({
   };
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 hover:border-slate-600 transition-all duration-200">
+    <div className="bg-card backdrop-blur-sm border border-border rounded-xl p-6 hover:border-accent transition-all duration-200">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-white mb-1">{name}</h3>
-          <p className="text-sm text-slate-400 mb-2">{image}</p>
+          <h3 className="text-lg font-semibold text-foreground mb-1">{name}</h3>
+          <p className="text-sm text-muted-foreground mb-2">{image}</p>
           <div className="flex items-center gap-2">
             <span className={`px-2 py-1 text-xs font-medium rounded-full border ${statusColors[status]}`}>
               {status.charAt(0).toUpperCase() + status.slice(1)}
             </span>
             {ports.length > 0 && (
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-muted-foreground">
                 Ports: {ports.join(', ')}
               </span>
             )}
@@ -90,10 +90,10 @@ export const ContainerCard: React.FC<ContainerCardProps> = ({
 
       <div className="space-y-3">
         <div className="flex justify-between text-sm">
-          <span className="text-slate-400">CPU Usage</span>
-          <span className="text-white">{cpuUsage.toFixed(1)}%</span>
+          <span className="text-muted-foreground">CPU Usage</span>
+          <span className="text-foreground">{cpuUsage.toFixed(1)}%</span>
         </div>
-        <div className="w-full bg-slate-700 rounded-full h-2">
+        <div className="w-full bg-muted rounded-full h-2">
           <div
             className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${Math.min(cpuUsage, 100)}%` }}
@@ -101,19 +101,19 @@ export const ContainerCard: React.FC<ContainerCardProps> = ({
         </div>
 
         <div className="flex justify-between text-sm">
-          <span className="text-slate-400">Memory Usage</span>
-          <span className="text-white">{memoryUsage.toFixed(1)}%</span>
+          <span className="text-muted-foreground">Memory Usage</span>
+          <span className="text-foreground">{memoryUsage.toFixed(1)}%</span>
         </div>
-        <div className="w-full bg-slate-700 rounded-full h-2">
+        <div className="w-full bg-muted rounded-full h-2">
           <div
             className="bg-gradient-to-r from-green-500 to-teal-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${Math.min(memoryUsage, 100)}%` }}
           />
         </div>
 
-        <div className="pt-2 border-t border-slate-700">
-          <p className="text-xs text-slate-400">Created: {created}</p>
-          <p className="text-xs text-slate-500 mt-1">ID: {id.substring(0, 12)}...</p>
+        <div className="pt-2 border-t border-border">
+          <p className="text-xs text-muted-foreground">Created: {created}</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">ID: {id.substring(0, 12)}...</p>
         </div>
       </div>
     </div>

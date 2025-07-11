@@ -37,8 +37,8 @@ export const StatCard: React.FC<StatCardProps> = ({
           </span>
         )}
       </div>
-      <h3 className="text-sm font-medium text-slate-400 mb-1">{title}</h3>
-      <p className="text-2xl font-bold text-white">{value}</p>
+      <h3 className="text-sm font-medium text-muted-foreground mb-1">{title}</h3>
+      <p className="text-2xl font-bold text-foreground">{value}</p>
     </div>
   );
 };

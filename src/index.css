@@ -39,14 +39,15 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Improved light theme sidebar colors */
+    --sidebar-background: 210 33% 96%;
+    --sidebar-foreground: 222 47% 25%;
+    --sidebar-primary: 224 76% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 88%;
+    --sidebar-accent-foreground: 222 47% 20%;
+    --sidebar-border: 214 32% 85%;
+    --sidebar-ring: 224 76% 48%;
   }
 
   .dark {
