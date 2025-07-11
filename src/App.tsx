@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -8,6 +7,7 @@ import { Login } from './components/Login';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { UserDashboard } from './pages/UserDashboard';
 import { UserContainers } from './pages/UserContainers';
+import { UserFileBrowser } from './pages/UserFileBrowser';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'admin' | 'user' }> = ({ 
   children, 
@@ -54,6 +54,12 @@ const AppRoutes: React.FC = () => {
       <Route path="/user/containers" element={
         <ProtectedRoute requiredRole="user">
           <UserContainers />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/user/files" element={
+        <ProtectedRoute requiredRole="user">
+          <UserFileBrowser />
         </ProtectedRoute>
       } />
       

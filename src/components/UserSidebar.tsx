@@ -5,12 +5,14 @@ import {
   Container, 
   Activity, 
   FileText, 
-  BarChart3
+  BarChart3,
+  FolderOpen
 } from 'lucide-react';
 
 const navItems = [
   { path: '/user', label: 'Dashboard', icon: BarChart3, exact: true },
   { path: '/user/containers', label: 'My Containers', icon: Container },
+  { path: '/user/files', label: 'File Manager', icon: FolderOpen },
   { path: '/user/monitoring', label: 'Resource Usage', icon: Activity },
   { path: '/user/logs', label: 'Application Logs', icon: FileText },
 ];
