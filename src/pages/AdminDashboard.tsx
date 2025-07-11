@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Container, Image, Users, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Container, Image, Users, Activity, AlertTriangle, CheckCircle, Cpu, Database } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { ContainerCard } from '../components/ContainerCard';
 
@@ -11,6 +11,12 @@ export const AdminDashboard: React.FC = () => {
     { title: 'Running Containers', value: 8, change: '+1', icon: CheckCircle, color: 'green' as const },
     { title: 'Docker Images', value: 24, change: '+3', icon: Image, color: 'purple' as const },
     { title: 'Active Users', value: 5, change: '0', icon: Users, color: 'orange' as const },
+  ];
+
+  // System resource stats
+  const resourceStats = [
+    { title: 'CPU Usage', value: '45%', change: '+5%', icon: Cpu, color: 'orange' as const },
+    { title: 'Memory Usage', value: '2.4GB', change: '+0.2GB', icon: Database, color: 'purple' as const },
   ];
 
   const recentContainers = [
@@ -56,6 +62,13 @@ export const AdminDashboard: React.FC = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
+          <StatCard key={index} {...stat} />
+        ))}
+      </div>
+
+      {/* Resource Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {resourceStats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
       </div>
