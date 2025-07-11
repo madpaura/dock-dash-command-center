@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { UserDashboard } from './pages/UserDashboard';
+import { UserContainers } from './pages/UserContainers';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'admin' | 'user' }> = ({ 
   children, 
@@ -47,6 +48,12 @@ const AppRoutes: React.FC = () => {
       <Route path="/user" element={
         <ProtectedRoute requiredRole="user">
           <UserDashboard />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/user/containers" element={
+        <ProtectedRoute requiredRole="user">
+          <UserContainers />
         </ProtectedRoute>
       } />
       
