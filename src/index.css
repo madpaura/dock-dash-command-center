@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -39,19 +40,12 @@ All colors MUST be HSL.
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -102,4 +96,39 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Light theme overrides */
+.light {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  
+  .bg-gradient-to-br {
+    background: linear-gradient(135deg, hsl(210 40% 98%), hsl(220 14% 96%), hsl(210 20% 98%));
+  }
+}
+
+/* Ensure proper theming for custom backgrounds */
+.light .bg-slate-900 {
+  @apply bg-white;
+}
+
+.light .bg-slate-800 {
+  @apply bg-gray-100;
+}
+
+.light .text-white {
+  @apply text-gray-900;
+}
+
+.light .text-slate-300 {
+  @apply text-gray-600;
+}
+
+.light .text-slate-400 {
+  @apply text-gray-500;
+}
+
+.light .border-slate-700 {
+  @apply border-gray-200;
 }
