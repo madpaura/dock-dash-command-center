@@ -97,38 +97,3 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
-
-/* Light theme overrides */
-.light {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  
-  .bg-gradient-to-br {
-    background: linear-gradient(135deg, hsl(210 40% 98%), hsl(220 14% 96%), hsl(210 20% 98%));
-  }
-}
-
-/* Ensure proper theming for custom backgrounds */
-.light .bg-slate-900 {
-  @apply bg-white;
-}
-
-.light .bg-slate-800 {
-  @apply bg-gray-100;
-}
-
-.light .text-white {
-  @apply text-gray-900;
-}
-
-.light .text-slate-300 {
-  @apply text-gray-600;
-}
-
-.light .text-slate-400 {
-  @apply text-gray-500;
-}
-
-.light .border-slate-700 {
-  @apply border-gray-200;
-}

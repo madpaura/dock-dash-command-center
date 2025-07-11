@@ -13,7 +13,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 light:from-slate-50 light:via-slate-100 light:to-slate-50">
+    <div className="min-h-screen bg-background">
       <Header />
       <div className="flex">
         {user?.role === 'admin' ? <AdminSidebar /> : <UserSidebar />}
