@@ -2,8 +2,6 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   Container, 
-  Activity, 
-  FileText, 
   BarChart3,
   FolderOpen,
   ChevronLeft,
@@ -15,8 +13,6 @@ const navItems = [
   { path: '/user', label: 'Dashboard', icon: BarChart3, exact: true },
   { path: '/user/containers', label: 'My Containers', icon: Container },
   { path: '/user/files', label: 'File Manager', icon: FolderOpen },
-  { path: '/user/monitoring', label: 'Resource Usage', icon: Activity },
-  { path: '/user/logs', label: 'Application Logs', icon: FileText },
 ];
 
 export const UserSidebar: React.FC = () => {
