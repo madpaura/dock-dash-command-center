@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './hooks/useTheme';
 import { Layout } from './components/Layout';
 import { Login } from './components/Login';
+import { Register } from './components/Register';
+import { LoadingScreen } from './components/LoadingScreen';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminServers } from './pages/AdminServers';
 import { AdminUsers } from './pages/AdminUsers';
@@ -17,10 +19,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'admi
   children, 
   requiredRole 
 }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   if (!isAuthenticated) {
-    return <Login />;
+    return <Navigate to="/login" replace />;
   }
 
   if (requiredRole && user?.role !== requiredRole) {
@@ -31,15 +37,17 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'admi
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
 
-  if (!isAuthenticated) {
-    return <Login />;
+  if (isLoading) {
+    return <LoadingScreen />;
   }
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={user?.role === 'admin' ? '/admin' : '/user'} replace />} />
+      <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to={user?.role === 'admin' ? '/admin' : '/user'} replace />} />
+      <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to={user?.role === 'admin' ? '/admin' : '/user'} replace />} />
+      <Route path="/" element={<Navigate to={isAuthenticated ? (user?.role === 'admin' ? '/admin' : '/user') : '/login'} replace />} />
       
       {/* Admin Routes */}
       <Route path="/admin" element={

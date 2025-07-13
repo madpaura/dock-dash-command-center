@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Container, Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { Link } from 'react-router-dom';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -16,9 +17,9 @@ export const Login: React.FC = () => {
     setIsLoading(true);
     setError('');
 
-    const success = await login(email, password);
-    if (!success) {
-      setError('Invalid credentials');
+    const result = await login(email, password);
+    if (!result.success) {
+      setError(result.error || 'Invalid credentials');
     }
     setIsLoading(false);
   };
@@ -96,6 +97,15 @@ export const Login: React.FC = () => {
               )}
             </button>
           </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-slate-400">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-blue-400 hover:text-blue-300 transition-colors">
+                Register now
+              </Link>
+            </p>
+          </div>
 
           <div className="mt-8 p-4 bg-slate-900/30 rounded-lg border border-slate-700">
             <h3 className="text-sm font-medium text-slate-300 mb-2">Demo Credentials:</h3>
