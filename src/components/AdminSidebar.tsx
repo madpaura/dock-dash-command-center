@@ -17,6 +17,7 @@ import { useSidebar } from '../hooks/useSidebar';
 
 const navItems = [
   { path: '/admin', label: 'Dashboard', icon: BarChart3, exact: true },
+  { path: '/admin/servers', label: 'Servers', icon: HardDrive },
   { path: '/admin/containers', label: 'Containers', icon: Container },
   { path: '/admin/images', label: 'Images', icon: Image },
   { path: '/admin/monitoring', label: 'Monitoring', icon: Activity },
