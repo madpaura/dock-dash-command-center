@@ -7,6 +7,7 @@ import { Login } from './components/Login';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminServers } from './pages/AdminServers';
 import { AdminUsers } from './pages/AdminUsers';
+import { AdminLogs } from './pages/AdminLogs';
 import { UserDashboard } from './pages/UserDashboard';
 import { UserContainers } from './pages/UserContainers';
 import { UserFileBrowser } from './pages/UserFileBrowser';
@@ -55,6 +56,12 @@ const AppRoutes: React.FC = () => {
       <Route path="/admin/users" element={
         <ProtectedRoute requiredRole="admin">
           <AdminUsers />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/admin/logs" element={
+        <ProtectedRoute requiredRole="admin">
+          <AdminLogs />
         </ProtectedRoute>
       } />
       
