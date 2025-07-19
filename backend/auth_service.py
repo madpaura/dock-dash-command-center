@@ -3,6 +3,10 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import hashlib
 import secrets
+import paramiko
+import threading
+import uuid
+import queue
 from user_database import UserDatabase
 from dotenv import load_dotenv
 import os
@@ -827,6 +831,267 @@ def server_action(server_id):
     except Exception as e:
         logger.error(f"Error performing server action: {e}")
         return jsonify({'success': False, 'error': 'Failed to perform server action'}), 500
+
+# SSH session management
+ssh_sessions = {}
+ssh_session_outputs = {}
+
+class SSHSession:
+    def __init__(self, session_id, host, port, username, password=None, key_path=None):
+        self.session_id = session_id
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.key_path = key_path
+        self.client = None
+        self.shell = None
+        self.output_queue = queue.Queue()
+        self.connected = False
+        
+    def connect(self):
+        try:
+            self.client = paramiko.SSHClient()
+            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            if self.key_path and os.path.exists(self.key_path):
+                # Use SSH key authentication
+                self.client.connect(
+                    hostname=self.host,
+                    port=self.port,
+                    username=self.username,
+                    key_filename=self.key_path,
+                    timeout=10
+                )
+            elif self.password:
+                # Use password authentication
+                self.client.connect(
+                    hostname=self.host,
+                    port=self.port,
+                    username=self.username,
+                    password=self.password,
+                    timeout=10
+                )
+            else:
+                raise Exception("No authentication method provided")
+            
+            # Create interactive shell
+            self.shell = self.client.invoke_shell()
+            self.shell.settimeout(0.1)
+            self.connected = True
+            
+            # Start output reader thread
+            threading.Thread(target=self._read_output, daemon=True).start()
+            
+            return True
+        except Exception as e:
+            logger.error(f"SSH connection failed: {e}")
+            return False
+    
+    def _read_output(self):
+        while self.connected and self.shell:
+            try:
+                if self.shell.recv_ready():
+                    output = self.shell.recv(4096).decode('utf-8', errors='ignore')
+                    self.output_queue.put(output)
+            except Exception as e:
+                if self.connected:
+                    logger.error(f"Error reading SSH output: {e}")
+                break
+    
+    def execute_command(self, command):
+        if not self.connected or not self.shell:
+            return False
+        try:
+            self.shell.send(command + '\n')
+            return True
+        except Exception as e:
+            logger.error(f"Error executing SSH command: {e}")
+            return False
+    
+    def get_output(self):
+        output_lines = []
+        try:
+            while not self.output_queue.empty():
+                output_lines.append(self.output_queue.get_nowait())
+        except queue.Empty:
+            pass
+        return ''.join(output_lines)
+    
+    def disconnect(self):
+        self.connected = False
+        if self.shell:
+            self.shell.close()
+        if self.client:
+            self.client.close()
+
+@app.route('/api/admin/servers/<server_id>/ssh/connect', methods=['POST'])
+def ssh_connect(server_id):
+    """Establish SSH connection to server"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    data = request.get_json()
+    ssh_config = data.get('ssh_config', {})
+    
+    logger.info(f"SSH connection requested for server {ssh_config}")
+    
+    # Extract server IP from server_id
+    server_ip = server_id.replace('server-', '').replace('-', '.')
+    
+    # Create SSH session
+    session_id = str(uuid.uuid4())
+    ssh_session = SSHSession(
+        session_id=session_id,
+        host=ssh_config.get('host', server_ip),
+        port=int(ssh_config.get('port', 22)),
+        username=ssh_config.get('username', 'root'),
+        password=ssh_config.get('password'),
+        key_path=ssh_config.get('key_path')
+    )
+    
+    if ssh_session.connect():
+        ssh_sessions[session_id] = ssh_session
+        
+        # Log SSH connection
+        admin_username = get_admin_username_from_token()
+        db.log_audit_event(
+            username=admin_username,
+            action_type='ssh_connect',
+            action_details={
+                'message': f'SSH connection established to server {server_ip}',
+                'server_id': server_id,
+                'server_ip': server_ip,
+                'ssh_user': ssh_config.get('username', 'root')
+            },
+            ip_address=request.remote_addr
+        )
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'message': f'SSH connection established to {server_ip}'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Failed to establish SSH connection'
+        }), 500
+
+@app.route('/api/admin/servers/ssh/<session_id>/execute', methods=['POST'])
+def ssh_execute(session_id):
+    """Execute command via SSH"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    if session_id not in ssh_sessions:
+        return jsonify({'success': False, 'error': 'SSH session not found'}), 404
+    
+    data = request.get_json()
+    command = data.get('command', '')
+    
+    ssh_session = ssh_sessions[session_id]
+    
+    if ssh_session.execute_command(command):
+        # Log command execution
+        admin_username = get_admin_username_from_token()
+        db.log_audit_event(
+            username=admin_username,
+            action_type='ssh_command',
+            action_details={
+                'message': f'SSH command executed: {command}',
+                'command': command,
+                'session_id': session_id,
+                'server_ip': ssh_session.host
+            },
+            ip_address=request.remote_addr
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Command executed'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Failed to execute command'
+        }), 500
+
+@app.route('/api/admin/servers/ssh/<session_id>/output', methods=['GET'])
+def ssh_get_output(session_id):
+    """Get SSH session output"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    if session_id not in ssh_sessions:
+        return jsonify({'success': False, 'error': 'SSH session not found'}), 404
+    
+    ssh_session = ssh_sessions[session_id]
+    output = ssh_session.get_output()
+    
+    return jsonify({
+        'success': True,
+        'output': output,
+        'connected': ssh_session.connected
+    })
+
+@app.route('/api/admin/servers/ssh/<session_id>/disconnect', methods=['POST'])
+def ssh_disconnect(session_id):
+    """Disconnect SSH session"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    if session_id in ssh_sessions:
+        ssh_session = ssh_sessions[session_id]
+        ssh_session.disconnect()
+        del ssh_sessions[session_id]
+        
+        # Log SSH disconnection
+        admin_username = get_admin_username_from_token()
+        db.log_audit_event(
+            username=admin_username,
+            action_type='ssh_disconnect',
+            action_details={
+                'message': f'SSH session disconnected',
+                'session_id': session_id,
+                'server_ip': ssh_session.host
+            },
+            ip_address=request.remote_addr
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'SSH session disconnected'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'SSH session not found'
+        }), 404
 
 # Session validation endpoints
 @app.route("/api/validate_session", methods=["POST"])

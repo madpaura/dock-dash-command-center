@@ -13,6 +13,7 @@ import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { ServerInfo } from '../lib/api';
+import { SSHTerminal } from './SSHTerminal';
 
 interface ServerSettingsDialogProps {
   server: ServerInfo | null;
@@ -56,6 +57,8 @@ export const ServerSettingsDialog: React.FC<ServerSettingsDialogProps> = ({
     failbanEnabled: true,
     maxLoginAttempts: '5',
   });
+
+  const [sshTerminalOpen, setSshTerminalOpen] = useState(false);
 
   const handleSave = () => {
     if (!server) return;
@@ -171,6 +174,16 @@ export const ServerSettingsDialog: React.FC<ServerSettingsDialogProps> = ({
                 onChange={(e) => setSshSettings({ ...sshSettings, password: e.target.value })}
                 placeholder="Leave empty to use SSH key"
               />
+            </div>
+            <div className="pt-4 border-t border-border">
+              <Button 
+                onClick={() => setSshTerminalOpen(true)}
+                className="w-full flex items-center gap-2"
+                variant="outline"
+              >
+                <Terminal className="w-4 h-4" />
+                Open SSH Terminal
+              </Button>
             </div>
           </TabsContent>
 
@@ -304,6 +317,20 @@ export const ServerSettingsDialog: React.FC<ServerSettingsDialogProps> = ({
           </Button>
         </DialogFooter>
       </DialogContent>
+      
+      <SSHTerminal
+        serverId={server.id}
+        serverIp={server.ip}
+        sshConfig={{
+          host: sshSettings.host,
+          port: sshSettings.port,
+          username: sshSettings.username,
+          password: sshSettings.password,
+          key_path: sshSettings.keyPath,
+        }}
+        open={sshTerminalOpen}
+        onOpenChange={setSshTerminalOpen}
+      />
     </Dialog>
   );
 };

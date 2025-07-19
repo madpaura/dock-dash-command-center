@@ -7,6 +7,8 @@ import { Progress } from '../components/ui/progress';
 import { serverApi, ServerInfo, ServerStats } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { ServerSettingsDialog } from '../components/ServerSettingsDialog';
+import { SSHTerminal } from '../components/SSHTerminal';
+import { SSHConnectionDialog } from '../components/SSHConnectionDialog';
 
 export const AdminServers: React.FC = () => {
   const { user } = useAuth();
@@ -18,6 +20,10 @@ export const AdminServers: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [selectedServer, setSelectedServer] = useState<ServerInfo | null>(null);
+  const [sshTerminalOpen, setSshTerminalOpen] = useState(false);
+  const [sshServer, setSshServer] = useState<ServerInfo | null>(null);
+  const [sshConnectionDialogOpen, setSshConnectionDialogOpen] = useState(false);
+  const [sshConfig, setSshConfig] = useState<any>(null);
 
   const fetchServerData = async () => {
     if (!token) return;
@@ -91,6 +97,16 @@ export const AdminServers: React.FC = () => {
       setError('Failed to save server settings');
       console.error('Error saving server settings:', err);
     }
+  };
+
+  const handleOpenSSHTerminal = (server: ServerInfo) => {
+    setSshServer(server);
+    setSshConnectionDialogOpen(true);
+  };
+
+  const handleSSHConnect = (config: any) => {
+    setSshConfig(config);
+    setSshTerminalOpen(true);
   };
 
   useEffect(() => {
@@ -300,7 +316,7 @@ export const AdminServers: React.FC = () => {
                         size="sm" 
                         variant="ghost" 
                         className="h-8 w-8 p-0 text-green-400 hover:text-green-300"
-                        onClick={() => handleServerAction(server.id, 'ssh')}
+                        onClick={() => handleOpenSSHTerminal(server)}
                         title="SSH Into Server"
                       >
                         <Terminal className="w-4 h-4" />
@@ -337,6 +353,23 @@ export const AdminServers: React.FC = () => {
         open={settingsDialogOpen}
         onOpenChange={setSettingsDialogOpen}
         onSave={handleSaveSettings}
+      />
+
+      {sshServer && sshConfig && (
+        <SSHTerminal
+          serverId={sshServer.id}
+          serverIp={sshServer.ip}
+          sshConfig={sshConfig}
+          open={sshTerminalOpen}
+          onOpenChange={setSshTerminalOpen}
+        />
+      )}
+
+      <SSHConnectionDialog
+        server={sshServer}
+        open={sshConnectionDialogOpen}
+        onOpenChange={setSshConnectionDialogOpen}
+        onConnect={handleSSHConnect}
       />
     </div>
   );

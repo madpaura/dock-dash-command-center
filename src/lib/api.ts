@@ -430,4 +430,63 @@ export const serverApi = {
       body: JSON.stringify({ action }),
     });
   },
+
+  // SSH functionality
+  sshConnect(
+    serverId: string,
+    sshConfig: {
+      host?: string;
+      port?: string;
+      username?: string;
+      password?: string;
+      key_path?: string;
+    },
+    token: string
+  ): Promise<ApiResponse<{ session_id: string; message: string }>> {
+    return fetchApi(`/admin/servers/${serverId}/ssh/connect`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ssh_config: sshConfig }),
+    });
+  },
+
+  sshExecute(
+    sessionId: string,
+    command: string,
+    token: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/servers/ssh/${sessionId}/execute`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ command }),
+    });
+  },
+
+  sshGetOutput(
+    sessionId: string,
+    token: string
+  ): Promise<ApiResponse<{ output: string; connected: boolean }>> {
+    return fetchApi(`/admin/servers/ssh/${sessionId}/output`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  sshDisconnect(
+    sessionId: string,
+    token: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/servers/ssh/${sessionId}/disconnect`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
 };
