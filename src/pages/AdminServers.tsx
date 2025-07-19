@@ -1,61 +1,134 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Server, RefreshCw, Plus, Settings, Monitor, Play, Square, Trash2, AlertTriangle } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
+import { serverApi, ServerInfo, ServerStats } from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
 
 export const AdminServers: React.FC = () => {
-  // Mock data
-  const stats = [
-    { title: 'Total Servers', value: 24, change: '+2', icon: Server, color: 'blue' as const },
-    { title: 'Online', value: 21, change: '+1', icon: Monitor, color: 'green' as const },
-    { title: 'Offline', value: 2, change: '0', icon: AlertTriangle, color: 'red' as const },
-    { title: 'Maintenance', value: 1, change: '-1', icon: Settings, color: 'orange' as const },
-  ];
+  const { user } = useAuth();
+  const token = user?.token;
+  const [servers, setServers] = useState<ServerInfo[]>([]);
+  const [stats, setStats] = useState<ServerStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const servers = [
-    {
-      id: 'web-server-01',
-      ip: '192.168.1.100',
-      status: 'online' as const,
-      cpu: 65,
-      memory: 78,
-      disk: 45,
-      uptime: '15d 4h',
-      type: 'web'
+  const fetchServerData = async () => {
+    if (!token) return;
+    
+    try {
+      setError(null);
+      const [serversResponse, statsResponse] = await Promise.all([
+        serverApi.getServers(token),
+        serverApi.getServerStats(token)
+      ]);
+
+      if (serversResponse.success && serversResponse.data) {
+        setServers(serversResponse.data.servers);
+      } else {
+        setError(serversResponse.error || 'Failed to fetch servers');
+      }
+
+      if (statsResponse.success && statsResponse.data) {
+        setStats(statsResponse.data.stats);
+      } else {
+        console.warn('Failed to fetch server stats:', statsResponse.error);
+      }
+    } catch (err) {
+      setError('Network error occurred');
+      console.error('Error fetching server data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchServerData();
+  };
+
+  const handleServerAction = async (serverId: string, action: string) => {
+    if (!token) return;
+    
+    try {
+      const response = await serverApi.performServerAction(serverId, action, token);
+      if (response.success) {
+        // Refresh server data after action
+        await fetchServerData();
+      } else {
+        setError(response.error || 'Failed to perform server action');
+      }
+    } catch (err) {
+      setError('Failed to perform server action');
+      console.error('Error performing server action:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchServerData();
+  }, [token]);
+
+  // Convert stats to StatCard format
+  const statCards = stats ? [
+    { 
+      title: 'Total Servers', 
+      value: stats.totalServers, 
+      change: stats.totalServersChange, 
+      icon: Server, 
+      color: 'blue' as const 
     },
-    {
-      id: 'db-server-01',
-      ip: '192.168.1.101',
-      status: 'online' as const,
-      cpu: 42,
-      memory: 89,
-      disk: 67,
-      uptime: '8d 12h',
-      type: 'database'
+    { 
+      title: 'Online', 
+      value: stats.onlineServers, 
+      change: stats.onlineServersChange, 
+      icon: Monitor, 
+      color: 'green' as const 
     },
-    {
-      id: 'api-server-01',
-      ip: '192.168.1.102',
-      status: 'offline' as const,
-      cpu: 0,
-      memory: 0,
-      disk: 0,
-      uptime: '-',
-      type: 'api'
+    { 
+      title: 'Offline', 
+      value: stats.offlineServers, 
+      change: stats.offlineServersChange, 
+      icon: AlertTriangle, 
+      color: 'red' as const 
     },
-    {
-      id: 'cache-server-01',
-      ip: '192.168.1.103',
-      status: 'maintenance' as const,
-      cpu: 15,
-      memory: 34,
-      disk: 23,
-      uptime: '2d 6h',
-      type: 'cache'
+    { 
+      title: 'Maintenance', 
+      value: stats.maintenanceServers, 
+      change: stats.maintenanceServersChange, 
+      icon: Settings, 
+      color: 'orange' as const 
     },
-  ];
+  ] : [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading server data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-4 text-red-400" />
+          <p className="text-red-400 mb-4">{error}</p>
+          <Button onClick={handleRefresh} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -95,8 +168,13 @@ export const AdminServers: React.FC = () => {
           <p className="text-muted-foreground">Monitor and manage your server infrastructure</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
-            <RefreshCw className="w-4 h-4" />
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Button className="gap-2">
@@ -108,7 +186,7 @@ export const AdminServers: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
+        {statCards.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
       </div>
@@ -188,21 +266,51 @@ export const AdminServers: React.FC = () => {
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-1">
                       {server.status === 'offline' ? (
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleServerAction(server.id, 'start')}
+                          title="Start Server"
+                        >
                           <Play className="w-4 h-4" />
                         </Button>
                       ) : (
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleServerAction(server.id, 'stop')}
+                          title="Stop Server"
+                        >
                           <Square className="w-4 h-4" />
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => handleServerAction(server.id, 'monitor')}
+                        title="Monitor Server"
+                      >
                         <Monitor className="w-4 h-4" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => handleServerAction(server.id, 'maintenance')}
+                        title="Maintenance Mode"
+                      >
                         <Settings className="w-4 h-4" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400 hover:text-red-300">
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                        onClick={() => handleServerAction(server.id, 'remove')}
+                        title="Remove Server"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>

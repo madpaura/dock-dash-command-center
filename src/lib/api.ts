@@ -354,11 +354,80 @@ export const adminApi = {
   },
 
   async clearAuditLogs(token: string): Promise<ApiResponse<{ message: string }>> {
-    return fetchApi<{ message: string }>('/audit-logs', {
+    return fetchApi<{ message: string }>('/admin/audit-logs', {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
+    });
+  },
+};
+
+/**
+ * Server management interfaces
+ */
+export interface ServerInfo {
+  id: string;
+  ip: string;
+  status: 'online' | 'offline' | 'maintenance';
+  cpu: number;
+  memory: number;
+  disk: number;
+  uptime: string;
+  type: string;
+  containers: number;
+  cpu_cores: number;
+  total_memory: number;
+  allocated_cpu: number;
+  allocated_memory: number;
+  remaining_cpu: number;
+  remaining_memory: number;
+}
+
+export interface ServerStats {
+  totalServers: number;
+  totalServersChange: string;
+  onlineServers: number;
+  onlineServersChange: string;
+  offlineServers: number;
+  offlineServersChange: string;
+  maintenanceServers: number;
+  maintenanceServersChange: string;
+}
+
+/**
+ * Server management API calls
+ */
+export const serverApi = {
+  getServers(token: string): Promise<ApiResponse<{ servers: ServerInfo[] }>> {
+    return fetchApi('/admin/servers', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  getServerStats(token: string): Promise<ApiResponse<{ stats: ServerStats }>> {
+    return fetchApi('/admin/servers/stats', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  performServerAction(
+    serverId: string, 
+    action: string, 
+    token: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/servers/${serverId}/action`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action }),
     });
   },
 };

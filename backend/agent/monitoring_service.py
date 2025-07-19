@@ -89,6 +89,18 @@ def get_agent_resources():
     memory_info = psutil.virtual_memory()
     total_memory = memory_info.total / (1024**3)
 
+    # Get disk usage information
+    disk_info = psutil.disk_usage('/')
+    total_disk = disk_info.total / (1024**3)  # Convert to GB
+    used_disk = disk_info.used / (1024**3)    # Convert to GB
+    
+    # Get system uptime
+    uptime_seconds = time.time() - psutil.boot_time()
+    uptime_days = uptime_seconds // (24 * 3600)
+    uptime_hours = (uptime_seconds % (24 * 3600)) // 3600
+    uptime_minutes = (uptime_seconds % 3600) // 60
+    uptime = f"{int(uptime_days)}d {int(uptime_hours)}h {int(uptime_minutes)}m"
+
     docker_instances = 0
     allocated_cpu = 0
     allocated_memory = 0 
@@ -119,6 +131,9 @@ def get_agent_resources():
         "total_memory": round(total_memory, 2),
         "host_cpu_used": cpu_percent,
         "host_memory_used": round(memory_info.used / (1024**3),2),
+        "total_disk": round(total_disk, 2),
+        "used_disk": round(used_disk, 2),
+        "uptime": uptime,
         "docker_instances": docker_instances,
         "allocated_cpu": allocated_cpu,
         "allocated_memory": round(allocated_memory, 2),

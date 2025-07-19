@@ -606,6 +606,7 @@ def clear_audit_logs():
 
 
 from agent_manager import query_available_agents
+import time
 
 # Server resources endpoint
 @app.route('/api/server-resources', methods=['GET'])
@@ -617,6 +618,217 @@ def get_server_resources():
     if servers:
         return jsonify({'success': True, 'servers': servers})
     return jsonify({'success': False, 'error': 'No servers available'}), 404
+
+# Server management endpoints
+@app.route('/api/admin/servers', methods=['GET'])
+def get_admin_servers():
+    """Get all servers with detailed information for admin dashboard"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    try:
+        # Get registered agents
+        agents_list = read_agents()
+        query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
+        
+        servers_data = []
+        
+        for agent_ip in agents_list:
+            try:
+                # Query agent for resources
+                resources = query_available_agents([agent_ip], query_port)
+                
+                if resources and len(resources) > 0:
+                    resource_data = resources[0]
+                    status = 'online'
+                    
+                    # Calculate usage percentages
+                    memory_total = resource_data.get('total_memory', 1)
+                    memory_used = resource_data.get('host_memory_used', 0)
+                    memory_usage = (memory_used / memory_total * 100) if memory_total > 0 else 0
+                    
+                    disk_total = resource_data.get('total_disk', 1)
+                    disk_used = resource_data.get('used_disk', 0)
+                    disk_usage = (disk_used / disk_total * 100) if disk_total > 0 else 0
+                    
+                    # Create server info dict with all resource data
+                    server_info = {
+                        'id': f'server-{agent_ip.replace(".", "-")}',
+                        'ip': agent_ip,
+                        'status': status,
+                        'cpu': round(resource_data.get('host_cpu_used', 0), 1),
+                        'memory': round(memory_usage, 1),
+                        'disk': round(disk_usage, 1),
+                        'uptime': resource_data.get('uptime', '-'),
+                        'type': 'compute',  # Could be enhanced based on actual server role
+                        'containers': resource_data.get('docker_instances', 0),
+                        'cpu_cores': resource_data.get('cpu_count', 0),
+                        'total_memory': memory_total,
+                        'allocated_cpu': resource_data.get('allocated_cpu', 0),
+                        'allocated_memory': resource_data.get('allocated_memory', 0),
+                        'remaining_cpu': resource_data.get('remaining_cpu', 0),
+                        'remaining_memory': resource_data.get('remaining_memory', 0)
+                    }
+                else:
+                    # Default values for offline server
+                    server_info = {
+                        'id': f'server-{agent_ip.replace(".", "-")}',
+                        'ip': agent_ip,
+                        'status': 'offline',
+                        'cpu': 0,
+                        'memory': 0,
+                        'disk': 0,
+                        'uptime': '-',
+                        'type': 'unknown',
+                        'containers': 0,
+                        'cpu_cores': 0,
+                        'total_memory': 0,
+                        'allocated_cpu': 0,
+                        'allocated_memory': 0,
+                        'remaining_cpu': 0,
+                        'remaining_memory': 0
+                    }
+                
+                servers_data.append(server_info)
+                
+            except Exception as e:
+                logger.error(f"Error querying server {agent_ip}: {e}")
+                # Add offline server with the same structure as above
+                servers_data.append({
+                    'id': f'server-{agent_ip.replace(".", "-")}',
+                    'ip': agent_ip,
+                    'status': 'error',
+                    'cpu': 0,
+                    'memory': 0,
+                    'disk': 0,
+                    'uptime': '-',
+                    'type': 'unknown',
+                    'containers': 0,
+                    'cpu_cores': 0,
+                    'total_memory': 0,
+                    'allocated_cpu': 0,
+                    'allocated_memory': 0,
+                    'remaining_cpu': 0,
+                    'remaining_memory': 0
+                })
+        
+        return jsonify({
+            'success': True,
+            'servers': servers_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching server data: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch server data'}), 500
+
+@app.route('/api/admin/servers/stats', methods=['GET'])
+def get_server_stats():
+    """Get server statistics for admin dashboard"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    try:
+        # Get registered agents
+        agents_list = read_agents()
+        query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
+        
+        total_servers = len(agents_list)
+        online_servers = 0
+        offline_servers = 0
+        maintenance_servers = 0
+        
+        # Query each server to determine status
+        for agent_ip in agents_list:
+            try:
+                resources = query_available_agents([agent_ip], query_port)
+                if resources and len(resources) > 0:
+                    online_servers += 1
+                else:
+                    offline_servers += 1
+            except Exception:
+                offline_servers += 1
+        
+        # For now, maintenance servers are manually configured (could be enhanced)
+        # maintenance_servers would be tracked separately
+        
+        stats = {
+            'totalServers': total_servers,
+            'totalServersChange': '+0',  # Would need historical data
+            'onlineServers': online_servers,
+            'onlineServersChange': '+0',  # Would need historical data
+            'offlineServers': offline_servers,
+            'offlineServersChange': '+0',  # Would need historical data
+            'maintenanceServers': maintenance_servers,
+            'maintenanceServersChange': '+0'  # Would need historical data
+        }
+        
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching server stats: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch server stats'}), 500
+
+@app.route('/api/admin/servers/<server_id>/action', methods=['POST'])
+def server_action(server_id):
+    """Perform actions on servers (start, stop, restart, etc.)"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    data = request.get_json()
+    action = data.get('action')
+    
+    if not action:
+        return jsonify({'success': False, 'error': 'Action required'}), 400
+    
+    try:
+        # Extract IP from server_id
+        server_ip = server_id.replace('server-', '').replace('-', '.')
+        
+        # Log the action
+        admin_username = get_admin_username_from_token()
+        db.log_audit_event(
+            username=admin_username,
+            action_type='server_action',
+            action_details={
+                'message': f'Performed {action} action on server {server_ip}',
+                'server_id': server_id,
+                'server_ip': server_ip,
+                'action': action
+            },
+            ip_address=request.remote_addr
+        )
+        
+        # For now, return success (actual implementation would depend on server management system)
+        # This could be enhanced to actually perform server actions via SSH, API calls, etc.
+        return jsonify({
+            'success': True,
+            'message': f'Action {action} initiated for server {server_ip}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error performing server action: {e}")
+        return jsonify({'success': False, 'error': 'Failed to perform server action'}), 500
 
 # Session validation endpoints
 @app.route("/api/validate_session", methods=["POST"])
