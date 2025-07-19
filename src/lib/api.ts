@@ -240,3 +240,97 @@ export const resourceApi = {
     });
   },
 };
+
+/**
+ * Admin-specific API calls
+ */
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  container: string;
+  containerStatus: string;
+  resources: {
+    cpu: string;
+    ram: string;
+    gpu: string;
+  };
+  server: string;
+  serverLocation: string;
+  status: string;
+}
+
+export interface AdminStats {
+  totalUsers: number;
+  totalUsersChange: string;
+  activeContainers: number;
+  containerUtilization: string;
+  availableServers: number;
+  serverStatus: string;
+}
+
+export const adminApi = {
+  getAdminUsers: async (token: string) => {
+    return fetchApi<{ users: AdminUser[] }>('/admin/users', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  getAdminStats: async (token: string) => {
+    return fetchApi<{ stats: AdminStats }>('/admin/stats', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  updateUser: async (userId: string, userData: Partial<AdminUser>, token: string) => {
+    return fetchApi<{}>(`/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(userData),
+    });
+  },
+
+  deleteUser: async (userId: string, token: string) => {
+    return fetchApi<{}>(`/users/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  approveUser: async (userId: string, server: string, resources: { cpu: string; ram: string; gpu: string }, token: string) => {
+    return fetchApi<{}>(`/admin/users/${userId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ server, resources }),
+    });
+  },
+
+  createUser: async (userData: {
+    name: string;
+    email: string;
+    password?: string;
+    role: string;
+    status: string;
+    server: string;
+    resources: { cpu: string; ram: string; gpu: string };
+  }, token: string) => {
+    return fetchApi<{ message: string; defaultPassword: string }>('/admin/users', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(userData),
+    });
+  },
+};

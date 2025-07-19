@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -11,75 +11,16 @@ import {
   Plus, 
   Edit, 
   Trash2,
-  Circle
+  Circle,
+  Loader2
 } from 'lucide-react';
+import { adminApi, type AdminUser, type AdminStats } from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
+import { EditUserDialog } from '../components/EditUserDialog';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/Toast';
 
-const mockUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    role: 'Admin',
-    container: 'container-jd-001',
-    containerStatus: 'running',
-    resources: {
-      cpu: '8 cores',
-      ram: '16GB',
-      gpu: '2 cores, 24GB'
-    },
-    server: 'Server 1',
-    serverLocation: 'us-east-1',
-    status: 'Running'
-  },
-  {
-    id: '2',
-    name: 'Alice Smith',
-    email: 'alice.smith@example.com',
-    role: 'Developer',
-    container: 'container-as-002',
-    containerStatus: 'stopped',
-    resources: {
-      cpu: '4 cores',
-      ram: '8GB',
-      gpu: '1 core, 12GB'
-    },
-    server: 'Server 2',
-    serverLocation: 'us-west-2',
-    status: 'Stopped'
-  },
-  {
-    id: '3',
-    name: 'Bob Johnson',
-    email: 'bob.johnson@example.com',
-    role: 'User',
-    container: 'container-bj-003',
-    containerStatus: 'running',
-    resources: {
-      cpu: '2 cores',
-      ram: '4GB',
-      gpu: '0 cores, 0GB'
-    },
-    server: 'Server 3',
-    serverLocation: 'eu-west-1',
-    status: 'Running'
-  },
-  {
-    id: '4',
-    name: 'Carol Wilson',
-    email: 'carol.wilson@example.com',
-    role: 'Developer',
-    container: 'container-cw-004',
-    containerStatus: 'error',
-    resources: {
-      cpu: '6 cores',
-      ram: '12GB',
-      gpu: '1 core, 16GB'
-    },
-    server: 'Server 4',
-    serverLocation: 'ap-south-1',
-    status: 'Error'
-  }
-];
+
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -101,6 +42,171 @@ const getContainerStatusIcon = (status: string) => {
 };
 
 export const AdminUsers: React.FC = () => {
+  const { user } = useAuth();
+  const { toasts, success, error: showError, removeToast } = useToast();
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'edit' | 'create'>('edit');
+
+  const fetchData = async () => {
+    if (!user?.token) return;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const [usersResponse, statsResponse] = await Promise.all([
+        adminApi.getAdminUsers(user.token),
+        adminApi.getAdminStats(user.token)
+      ]);
+      
+      if (usersResponse.success && usersResponse.data) {
+        setUsers(usersResponse.data.users);
+      } else {
+        setError(usersResponse.error || 'Failed to fetch users');
+      }
+      
+      if (statsResponse.success && statsResponse.data) {
+        setStats(statsResponse.data.stats);
+      }
+    } catch (err) {
+      setError('Network error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [user?.token]);
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!user?.token) return;
+    
+    try {
+      const response = await adminApi.deleteUser(userId, user.token);
+      if (response.success) {
+        success('User deleted successfully!');
+        setUsers(users.filter(u => u.id !== userId));
+      } else {
+        showError('Failed to delete user', response.error || 'Unknown error occurred');
+      }
+    } catch (err) {
+      showError('Failed to delete user', 'Network error occurred');
+    }
+  };
+
+  const handleEditUser = (userToEdit: AdminUser) => {
+    setEditingUser(userToEdit);
+    setDialogMode('edit');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleAddUser = () => {
+    setEditingUser(null);
+    setDialogMode('create');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveUser = async (userId: string, userData: Partial<AdminUser>) => {
+    if (!user?.token) return;
+    
+    try {
+      const response = await adminApi.updateUser(userId, userData, user.token);
+      if (response.success) {
+        success('User updated successfully!');
+        // Refresh data to get updated user info
+        await fetchData();
+      } else {
+        showError('Failed to update user', response.error || 'Unknown error occurred');
+      }
+    } catch (err) {
+      showError('Failed to update user', 'Network error occurred');
+    }
+  };
+
+  const handleApproveUser = async (userId: string, server: string, resources: { cpu: string; ram: string; gpu: string }) => {
+    if (!user?.token) return;
+    
+    try {
+      const response = await adminApi.approveUser(userId, server, resources, user.token);
+      if (response.success) {
+        success('User approved successfully!');
+        // Refresh data to get updated user info
+        await fetchData();
+      } else {
+        showError('Failed to approve user', response.error || 'Unknown error occurred');
+      }
+    } catch (err) {
+      showError('Failed to approve user', 'Network error occurred');
+    }
+  };
+
+  const handleCreateUser = async (userData: {
+    name: string;
+    email: string;
+    password?: string;
+    role: string;
+    status: string;
+    server: string;
+    resources: { cpu: string; ram: string; gpu: string };
+  }) => {
+    if (!user?.token) return;
+    
+    try {
+      const response = await adminApi.createUser(userData, user.token);
+      if (response.success) {
+        // Show success message with default password if provided
+        if (response.data?.defaultPassword) {
+          success(
+            'User created successfully!',
+            `Default password: ${response.data.defaultPassword}. Please share this with the user.`
+          );
+        } else {
+          success('User created successfully!');
+        }
+        // Refresh data to show new user
+        await fetchData();
+      } else {
+        showError('Failed to create user', response.error || 'Unknown error occurred');
+      }
+    } catch (err) {
+      showError('Failed to create user', 'Network error occurred');
+    }
+  };
+
+  const handleCloseEditDialog = () => {
+    setIsEditDialogOpen(false);
+    setEditingUser(null);
+    setDialogMode('edit');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Loading users...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">Error: {error}</p>
+          <Button onClick={fetchData} className="mt-2">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -109,7 +215,7 @@ export const AdminUsers: React.FC = () => {
           <h1 className="text-3xl font-bold text-foreground">User Management</h1>
           <p className="text-muted-foreground mt-1">Manage users and their container resources</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={handleAddUser}>
           <Plus className="w-4 h-4" />
           Add New User
         </Button>
@@ -138,7 +244,7 @@ export const AdminUsers: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockUsers.map((user) => (
+                {users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -182,10 +288,20 @@ export const AdminUsers: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleEditUser(user)}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteUser(user.id)}
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -206,9 +322,9 @@ export const AdminUsers: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24</div>
+            <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +2 from last month
+              {stats?.totalUsersChange || '+0 from last month'}
             </p>
           </CardContent>
         </Card>
@@ -219,9 +335,9 @@ export const AdminUsers: React.FC = () => {
             <Container className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">18</div>
+            <div className="text-2xl font-bold">{stats?.activeContainers || 0}</div>
             <p className="text-xs text-muted-foreground">
-              75% utilization
+              {stats?.containerUtilization || '0% utilization'}
             </p>
           </CardContent>
         </Card>
@@ -232,13 +348,27 @@ export const AdminUsers: React.FC = () => {
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">4</div>
+            <div className="text-2xl font-bold">{stats?.availableServers || 0}</div>
             <p className="text-xs text-muted-foreground">
-              All regions online
+              {stats?.serverStatus || 'Status unknown'}
             </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit User Dialog */}
+      <EditUserDialog
+        user={editingUser}
+        isOpen={isEditDialogOpen}
+        onClose={handleCloseEditDialog}
+        onSave={handleSaveUser}
+        onApprove={handleApproveUser}
+        onCreate={handleCreateUser}
+        mode={dialogMode}
+      />
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 };

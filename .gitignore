@@ -23,4 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-manager
+__pycache__
+qvp-deploy
+*.db
