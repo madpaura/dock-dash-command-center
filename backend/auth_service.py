@@ -819,8 +819,6 @@ def server_action(server_id):
             ip_address=request.remote_addr
         )
         
-        # For now, return success (actual implementation would depend on server management system)
-        # This could be enhanced to actually perform server actions via SSH, API calls, etc.
         return jsonify({
             'success': True,
             'message': f'Action {action} initiated for server {server_ip}'

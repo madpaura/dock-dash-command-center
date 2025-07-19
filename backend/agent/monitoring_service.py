@@ -108,14 +108,14 @@ def get_agent_resources():
     try:
         docker_instances = 0
         for container in containers:
-            if "code-server" in container.name:
-                stats = container.stats(stream=False)
-                docker_instances += 1
-                container_info = client.api.inspect_container(container.id)
-                host_config = container_info.get("HostConfig", {})
-                allocated_cpu += host_config.get("CpuCount") 
-                allocated_memory += host_config.get("Memory") / (1024 **3)
-                logger.info(f"{allocated_cpu}, {allocated_memory}")
+            # if "code-server" in container.name:
+            stats = container.stats(stream=False)
+            docker_instances += 1
+            container_info = client.api.inspect_container(container.id)
+            host_config = container_info.get("HostConfig", {})
+            allocated_cpu += host_config.get("CpuCount") 
+            allocated_memory += host_config.get("Memory") / (1024 **3)
+            logger.info(f"{allocated_cpu}, {allocated_memory}")
 
     except DockerException as e:
         logger.error(f"Error fetching Docker container stats: {e}")

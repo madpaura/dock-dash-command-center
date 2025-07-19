@@ -26,19 +26,19 @@ export const StatCard: React.FC<StatCardProps> = ({
   };
 
   return (
-    <div className={`bg-gradient-to-br ${colorClasses[color]} border backdrop-blur-sm rounded-xl p-6 hover:scale-105 transition-all duration-200`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 bg-gradient-to-r ${colorClasses[color].replace('/20', '/10')} rounded-lg`}>
-          <Icon className="w-6 h-6" />
+    <div className={`bg-gradient-to-br ${colorClasses[color]} border backdrop-blur-sm rounded-lg p-4 hover:scale-105 transition-all duration-200`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className={`p-2 bg-gradient-to-r ${colorClasses[color].replace('/20', '/10')} rounded-md`}>
+          <Icon className="w-4 h-4" />
         </div>
         {change && (
-          <span className={`text-sm font-medium ${change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+          <span className={`text-xs font-medium ${change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
             {change}
           </span>
         )}
       </div>
-      <h3 className="text-sm font-medium text-muted-foreground mb-1">{title}</h3>
-      <p className="text-2xl font-bold text-foreground">{value}</p>
+      <h3 className="text-xs font-medium text-muted-foreground mb-1">{title}</h3>
+      <p className="text-xl font-bold text-foreground">{value}</p>
     </div>
   );
 };

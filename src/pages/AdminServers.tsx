@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Server, RefreshCw, Plus, Settings, Monitor, Play, Square, Trash2, AlertTriangle } from 'lucide-react';
+import { Server, RefreshCw, Plus, Settings, Monitor, Play, Square, Trash2, AlertTriangle, Container, HardDrive, Terminal } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { serverApi, ServerInfo, ServerStats } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import { ServerSettingsDialog } from '../components/ServerSettingsDialog';
 
 export const AdminServers: React.FC = () => {
   const { user } = useAuth();
@@ -15,6 +16,8 @@ export const AdminServers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [selectedServer, setSelectedServer] = useState<ServerInfo | null>(null);
 
   const fetchServerData = async () => {
     if (!token) return;
@@ -57,7 +60,6 @@ export const AdminServers: React.FC = () => {
     try {
       const response = await serverApi.performServerAction(serverId, action, token);
       if (response.success) {
-        // Refresh server data after action
         await fetchServerData();
       } else {
         setError(response.error || 'Failed to perform server action');
@@ -65,6 +67,29 @@ export const AdminServers: React.FC = () => {
     } catch (err) {
       setError('Failed to perform server action');
       console.error('Error performing server action:', err);
+    }
+  };
+
+  const handleOpenSettings = (server: ServerInfo) => {
+    setSelectedServer(server);
+    setSettingsDialogOpen(true);
+  };
+
+  const handleSaveSettings = async (serverId: string, settings: any) => {
+    if (!token) return;
+    
+    try {
+      // For now, just log the settings - this could be enhanced to save to backend
+      console.log('Saving settings for server:', serverId, settings);
+      
+      // You could add an API call here to save server settings
+      // const response = await serverApi.saveServerSettings(serverId, settings, token);
+      
+      // Show success message or handle response
+      setError(null);
+    } catch (err) {
+      setError('Failed to save server settings');
+      console.error('Error saving server settings:', err);
     }
   };
 
@@ -191,21 +216,6 @@ export const AdminServers: React.FC = () => {
         ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card backdrop-blur-sm border border-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">CPU Usage</h3>
-          <div className="h-48 flex items-center justify-center border border-dashed border-border rounded-lg">
-            <span className="text-muted-foreground">CPU Usage Chart</span>
-          </div>
-        </div>
-        <div className="bg-card backdrop-blur-sm border border-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Memory Usage</h3>
-          <div className="h-48 flex items-center justify-center border border-dashed border-border rounded-lg">
-            <span className="text-muted-foreground">Memory Usage Chart</span>
-          </div>
-        </div>
-      </div>
 
       {/* Server List */}
       <div className="bg-card backdrop-blur-sm border border-border rounded-xl p-6">
@@ -236,6 +246,9 @@ export const AdminServers: React.FC = () => {
                       <div>
                         <div className="font-medium text-foreground">{server.id}</div>
                         <div className="text-sm text-muted-foreground">{server.ip}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {server.containers} container{server.containers !== 1 ? 's' : ''}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -265,42 +278,39 @@ export const AdminServers: React.FC = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-1">
-                      {server.status === 'offline' ? (
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleServerAction(server.id, 'start')}
-                          title="Start Server"
-                        >
-                          <Play className="w-4 h-4" />
-                        </Button>
-                      ) : (
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleServerAction(server.id, 'stop')}
-                          title="Stop Server"
-                        >
-                          <Square className="w-4 h-4" />
-                        </Button>
-                      )}
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleServerAction(server.id, 'monitor')}
-                        title="Monitor Server"
+                        className="h-8 w-8 p-0 text-orange-400 hover:text-orange-300"
+                        onClick={() => handleServerAction(server.id, 'remove_containers')}
+                        title="Remove All Running Containers"
                       >
-                        <Monitor className="w-4 h-4" />
+                        <Container className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300"
+                        onClick={() => handleServerAction(server.id, 'cleanup_disk')}
+                        title="Clean Up Disk"
+                      >
+                        <HardDrive className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-8 w-8 p-0 text-green-400 hover:text-green-300"
+                        onClick={() => handleServerAction(server.id, 'ssh')}
+                        title="SSH Into Server"
+                      >
+                        <Terminal className="w-4 h-4" />
                       </Button>
                       <Button 
                         size="sm" 
                         variant="ghost" 
                         className="h-8 w-8 p-0"
-                        onClick={() => handleServerAction(server.id, 'maintenance')}
-                        title="Maintenance Mode"
+                        onClick={() => handleOpenSettings(server)}
+                        title="Settings"
                       >
                         <Settings className="w-4 h-4" />
                       </Button>
@@ -308,8 +318,8 @@ export const AdminServers: React.FC = () => {
                         size="sm" 
                         variant="ghost" 
                         className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
-                        onClick={() => handleServerAction(server.id, 'remove')}
-                        title="Remove Server"
+                        onClick={() => handleServerAction(server.id, 'delete')}
+                        title="Delete Server"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -321,6 +331,13 @@ export const AdminServers: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <ServerSettingsDialog
+        server={selectedServer}
+        open={settingsDialogOpen}
+        onOpenChange={setSettingsDialogOpen}
+        onSave={handleSaveSettings}
+      />
     </div>
   );
 };
