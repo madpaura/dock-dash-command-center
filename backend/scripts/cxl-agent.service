@@ -1,0 +1,20 @@
+[Unit]
+Description=CXL Agent Services (Container Manager + Agent Server)
+After=network.target
+
+[Service]
+User=vishwa
+Group=vishwa
+WorkingDirectory=/home/vishwa/workspace/cxl-deploy/docker-code-server/manager/agent
+Environment="PYTHONPATH=/home/vishwa/workspace/cxl-deploy/docker-code-server"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/home/vishwa/.local/bin:$PATH"
+ExecStart=/bin/bash -c 'source /home/vishwa/workspace/cxl-deploy/docker-code-server/manager/agent/bin/activate && python3 agent_server.py && streamlit run agent_interface.py'
+Restart=always
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=cxl-agent
+
+[Install]
+WantedBy=multi-user.target

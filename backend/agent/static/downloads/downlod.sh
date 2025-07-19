@@ -1,0 +1,1 @@
+wget https://releases.pagure.org/virt-viewer/virt-viewer-x64-11.0-1.0.msi -O /home/vishwa/workspace/cxl-deploy/docker-code-server/manager/agent/static/downloads/virt-viewer-x64-11.0-1.0.msi
