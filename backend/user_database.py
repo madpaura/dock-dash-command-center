@@ -292,6 +292,59 @@ class UserDatabase:
         finally:
             cursor.close()
             conn.close()
+    
+    def log_audit_event(self, username: str, action_type: str, action_details: Dict, ip_address: str):
+        """Log user actions for audit using username instead of user_id"""
+        # Get user_id from username
+        user = self.get_user_by_username(username)
+        if user:
+            user_id = user['id']
+        else:
+            # For system actions, create or get system user
+            if username.lower() == 'system':
+                user_id = self._get_or_create_system_user()
+            else:
+                # If user not found, try to use admin as fallback
+                admin_user = self.get_user_by_username('admin')
+                user_id = admin_user['id'] if admin_user else self._get_or_create_system_user()
+        
+        self.log_audit(user_id, action_type, action_details, ip_address)
+
+    def _get_or_create_system_user(self) -> int:
+        """Get or create a system user for audit logging"""
+        # First try to get existing system user
+        system_user = self.get_user_by_username('System')
+        if system_user:
+            return system_user['id']
+        
+        # Create system user if it doesn't exist
+        query = """
+        INSERT INTO users (username, password, email, is_admin, is_approved, status)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query, (
+                'System',
+                'system_user_no_login',  # System user cannot login
+                'system@localhost',
+                0,  # Not admin
+                1,  # Approved
+                'system'  # System status
+            ))
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            # If system user already exists (race condition), get it
+            system_user = self.get_user_by_username('System')
+            if system_user:
+                return system_user['id']
+            raise e
+        finally:
+            cursor.close()
+            conn.close()
 
     def create_session(self, user_id: int, session_token: str, expires_at: datetime) -> bool:
         """Create a new user session"""
@@ -378,6 +431,22 @@ class UserDatabase:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(query, params)
             return cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
+    
+    def clear_audit_logs(self) -> bool:
+        """Clear all audit logs from the database"""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM audit_log")
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error clearing audit logs: {e}")
+            conn.rollback()
+            return False
         finally:
             cursor.close()
             conn.close()

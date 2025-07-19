@@ -49,21 +49,41 @@ def write_agents(agents):
         for agent in agents:
             file.write(f"{agent}\n")
 
+def get_admin_username_from_token():
+    """Get admin username from authorization token, fallback to 'admin'"""
+    admin_username = 'admin'  # Default fallback
+    try:
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            session = db.verify_session(token)
+            if session and session.get('username'):
+                admin_username = session['username']
+    except:
+        pass  # Use default fallback
+    return admin_username
+
 # Authentication endpoints
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
-    print(email, password)
     user = db.verify_login(email, password)
-    print(user)
 
     if user and user["is_approved"]:
         session_token = generate_session_token()
         expires_at = datetime.now() + timedelta(hours=24)
         
         if db.create_session(user["id"], session_token, expires_at):
+            # Log successful login
+            db.log_audit_event(
+                user["username"],
+                'login',
+                {'message': f'User {user["username"]} logged in successfully', 'email': email},
+                request.remote_addr
+            )
+            
             return jsonify({
                 'success': True,
                 'data': {
@@ -75,6 +95,14 @@ def login():
                 }
             })
     
+    # Log failed login attempt
+    db.log_audit_event(
+        email if email else 'Unknown',
+        'login_failed',
+        {'message': f'Failed login attempt for email: {email}', 'reason': 'Invalid credentials or account not approved'},
+        request.remote_addr
+    )
+    
     return jsonify({'success': False, 'error': 'Invalid credentials or account not approved'}), 401
 
 def invalidate_session_by_token(token):
@@ -83,7 +111,7 @@ def invalidate_session_by_token(token):
         db.remove_session(token)
         return True
     except Exception as e:
-        print(f"Error invalidating session: {e}")
+        logger.error(f"Error invalidating session: {e}")
         return False
 
 @app.route('/api/logout', methods=['POST'])
@@ -94,7 +122,21 @@ def logout():
     
     token = auth_header.split(' ')[1]
     
+    # Get user info before invalidating session for logging
+    try:
+        session = db.verify_session(token)
+        username = session.get('username', 'Unknown') if session else 'Unknown'
+    except:
+        username = 'Unknown'
+    
     if invalidate_session_by_token(token):
+        # Log successful logout
+        db.log_audit_event(
+            username,
+            'logout',
+            {'message': f'User {username} logged out successfully'},
+            request.remote_addr
+        )
         return jsonify({'success': True})
     else:
         return jsonify({'success': False, 'error': 'Failed to logout'}), 400
@@ -117,7 +159,22 @@ def register():
     }
     
     if db.create_user(user_data):
+        # Log successful registration
+        db.log_audit_event(
+            username,
+            'register',
+            {'message': f'New user {username} registered successfully', 'email': email},
+            request.remote_addr
+        )
         return jsonify({'success': True})
+    
+    # Log failed registration
+    db.log_audit_event(
+        username if username else 'Unknown',
+        'register_failed',
+        {'message': f'Failed registration attempt for username: {username}, email: {email}', 'reason': 'Username or email already exists'},
+        request.remote_addr
+    )
     
     return jsonify({'success': False, 'error': 'Username or email already exists'}), 400
 
@@ -145,8 +202,17 @@ def get_user_info(user_id):
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
+    admin_username = get_admin_username_from_token()
+    
     user = db.get_user_by_id(user_id)
     if user and db.delete_user_by_username(user['username']):
+        # Log successful user deletion
+        db.log_audit_event(
+            admin_username,
+            'delete_user',
+            {'message': f'User {user["username"]} (ID: {user_id}) deleted by {admin_username}', 'deleted_user': user['username']},
+            request.remote_addr
+        )
         return jsonify({'success': True})
     return jsonify({'success': False, 'error': 'User not found'}), 404
 
@@ -162,10 +228,26 @@ def approve_user(user_id):
     data = request.get_json()
     server_id = data.get('server_id')
     
+    # Get user info before approval
+    user = db.get_user_by_id(user_id)
+    
     if db.update_user(user_id, {
         'is_approved': True,
         'redirect_url': f"http://{server_id}:{os.getenv('AGENT_PORT', 8510)}"
     }):
+        # Log successful user approval
+        if user:
+            admin_username = get_admin_username_from_token()
+            db.log_audit_event(
+                admin_username,
+                'approve_user',
+                {
+                    'message': f'User {user["username"]} (ID: {user_id}) approved by {admin_username}',
+                    'approved_user': user['username'],
+                    'server_id': server_id
+                },
+                request.remote_addr
+            )
         return jsonify({'success': True})
     return jsonify({'success': False, 'error': 'User not found'}), 404
 
@@ -184,7 +266,6 @@ def get_admin_users():
             container_name = f"container-{user['username'][:2].lower()}-{user['id']:03d}"
             container_status = 'running' if user.get('is_approved') else 'stopped'
             
-            print(user)
             # Assign resources based on role
             if user.get('is_admin'):
                 resources = {'cpu': '8 cores', 'ram': '16GB', 'gpu': '2 cores, 24GB'}
@@ -255,7 +336,22 @@ def update_admin_user(user_id):
         if 'role' in data:
             update_fields['is_admin'] = data['role'].lower() == 'admin'
 
+        # Get user info before update
+        user = db.get_user_by_id(user_id)
+        
         if db.update_user(user_id, update_fields):
+            # Log successful user update
+            if user:
+                db.log_audit_event(
+                    'Admin',  # Could get actual admin user from token
+                    'update_user',
+                    {
+                        'message': f'User {user["username"]} (ID: {user_id}) updated by admin',
+                        'updated_user': user['username'],
+                        'updated_fields': list(update_fields.keys())
+                    },
+                    request.remote_addr
+                )
             return jsonify({'success': True})
         return jsonify({'success': False, 'error': 'User not found'}), 404
     except Exception as e:
@@ -322,6 +418,21 @@ def create_admin_user():
         # Create user
         if db.create_user(user_data):
             logger.info(f"Admin created new user: {name} ({email}) with role {role}")
+            
+            # Log successful user creation
+            db.log_audit_event(
+                'Admin',  # Could get actual admin user from token
+                'create_user',
+                {
+                    'message': f'Admin created new user {name} ({email}) with role {role}',
+                    'created_user': name,
+                    'email': email,
+                    'role': role,
+                    'server_assignment': server_assignment
+                },
+                request.remote_addr
+            )
+            
             return jsonify({
                 'success': True, 
                 'message': f'User {name} created successfully',
@@ -366,27 +477,133 @@ def approve_admin_user(user_id):
         server_id = server_map.get(server_assignment, 'server-1')
         update_fields['redirect_url'] = f"http://{server_id}:{os.getenv('AGENT_PORT', 8510)}"
         
+        # Get user info before approval
+        user = db.get_user_by_id(user_id)
+        
         if db.update_user(user_id, update_fields):
             logger.info(f"User {user_id} approved with server {server_assignment} and resources {resources}")
+            
+            # Log successful user approval
+            if user:
+                db.log_audit_event(
+                    'Admin',  # Could get actual admin user from token
+                    'approve_user',
+                    {
+                        'message': f'Admin approved user {user["username"]} (ID: {user_id})',
+                        'approved_user': user['username'],
+                        'server_assignment': server_assignment,
+                        'resources': resources
+                    },
+                    request.remote_addr
+                )
+            
             return jsonify({'success': True})
         return jsonify({'success': False, 'error': 'User not found'}), 404
     except Exception as e:
         logger.error(f"Error approving user {user_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to approve user'}), 500
 
-# Audit logs endpoint
+# Audit logs endpoints
 @app.route('/api/audit-logs', methods=['GET'])
 def get_audit_logs():
-    username = request.args.get('username')
-    limit = request.args.get('limit', default=100, type=int)
-    
-    logger.info(f"Fetching audit logs for username: {username}, limit: {limit}")
-    logs = db.get_audit_logs(username=username, limit=limit)
-    if logs:
-        logger.success(f"Found {len(logs)} audit logs")
-        return jsonify({'success': True, 'logs': logs})
-    logger.info("No audit logs found")
-    return jsonify({'success': False, 'error': 'No logs found'}), 404
+    """Get all audit logs - filtering and sorting handled on frontend"""
+    try:
+        logger.info("Fetching all audit logs")
+        
+        logs = db.get_audit_logs(limit=1000) 
+        transformed_logs = []
+        for log in logs:
+
+            action_details = {}
+            if log.get('action_details'):
+                try:
+                    action_details = json.loads(log['action_details']) if isinstance(log['action_details'], str) else log['action_details']
+                except:
+                    action_details = {}
+            
+            level = 'INFO'
+            if log.get('action_type') in ['login_failed', 'error', 'delete_user']:
+                level = 'ERROR'
+            elif log.get('action_type') in ['login_attempt', 'update_user', 'warning']:
+                level = 'WARN'
+            elif log.get('action_type') in ['debug', 'query']:
+                level = 'DEBUG'
+            
+            # Determine source based on action type
+            source_map = {
+                'login': 'auth.service',
+                'login_failed': 'auth.service',
+                'logout': 'auth.service',
+                'create_user': 'user.service',
+                'update_user': 'user.service',
+                'delete_user': 'user.service',
+                'approve_user': 'user.service',
+                'system_start': 'system',
+                'api_call': 'api.gateway'
+            }
+            source = source_map.get(log.get('action_type', ''), 'system')
+            
+            transformed_log = {
+                'id': str(log['id']),
+                'level': level,
+                'timestamp': log['timestamp'].strftime('%Y-%m-%d %H:%M:%S') if hasattr(log['timestamp'], 'strftime') else str(log['timestamp']),
+                'user': log.get('username', 'System'),
+                'source': source,
+                'message': action_details.get('message', f"{log.get('action_type', 'Unknown action')}"),
+                'ip_address': log.get('ip_address', 'N/A'),
+                'action_type': log.get('action_type', 'unknown')
+            }
+            transformed_logs.append(transformed_log)
+        
+        return jsonify({
+            'success': True,
+            'logs': transformed_logs
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching audit logs: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch logs'}), 500
+
+
+@app.route('/api/audit-logs', methods=['DELETE'])
+def clear_audit_logs():
+    """Clear all audit logs - admin only"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'No authorization token provided'}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_info = db.validate_session(token)
+        
+        if not user_info or user_info.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        
+        logger.info(f"Admin {user_info.get('username')} clearing all audit logs")
+        
+        # Clear all audit logs
+        result = db.clear_audit_logs()
+        
+        if result:
+            # Log this action
+            db.log_audit_event(
+                user_info.get('username'),
+                'clear_logs',
+                {'message': 'All audit logs cleared by admin'},
+                request.remote_addr
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'All audit logs cleared successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to clear logs'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error clearing audit logs: {e}")
+        return jsonify({'success': False, 'error': 'Failed to clear logs'}), 500
+
 
 from agent_manager import query_available_agents
 
@@ -440,6 +657,15 @@ def register_agent():
     agents.append(agent)
     write_agents(agents)
     logger.success(f"Agent {agent} registered successfully")
+    
+    # Log agent registration
+    db.log_audit_event(
+        'System',
+        'register_agent',
+        {'message': f'New agent {agent} registered successfully', 'agent_ip': agent},
+        request.remote_addr
+    )
+    
     return jsonify({"valid": True, "message": "Agent registered successfully"}), 200
 
 @app.route("/api/unregister_agent", methods=["POST"])
@@ -459,6 +685,15 @@ def unregister_agent():
     agents.remove(agent)
     write_agents(agents)
     logger.success(f"Agent {agent} unregistered successfully")
+    
+    # Log agent unregistration
+    db.log_audit_event(
+        'System',
+        'unregister_agent',
+        {'message': f'Agent {agent} unregistered successfully', 'agent_ip': agent},
+        request.remote_addr
+    )
+    
     return jsonify({"valid": True, "message": "Agent unregistered successfully"}), 200
 
 if __name__ == '__main__':

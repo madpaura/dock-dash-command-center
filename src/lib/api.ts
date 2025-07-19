@@ -270,16 +270,27 @@ export interface AdminStats {
   serverStatus: string;
 }
 
+export interface AuditLog {
+  id: string;
+  level: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
+  timestamp: string;
+  user: string;
+  source: string;
+  message: string;
+  ip_address?: string;
+  action_type?: string;
+}
+
 export const adminApi = {
-  getAdminUsers: async (token: string) => {
-    return fetchApi<{ users: AdminUser[] }>('/admin/users', {
+  async getAdminUsers(token: string): Promise<ApiResponse<AdminUser[]>> {
+    return fetchApi<AdminUser[]>('/admin/users', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
   },
 
-  getAdminStats: async (token: string) => {
+  async getAdminStats(token: string): Promise<ApiResponse<{ stats: AdminStats }>> {
     return fetchApi<{ stats: AdminStats }>('/admin/stats', {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -287,7 +298,15 @@ export const adminApi = {
     });
   },
 
-  updateUser: async (userId: string, userData: Partial<AdminUser>, token: string) => {
+  async getAuditLogs(token: string): Promise<ApiResponse<{ logs: AuditLog[] }>> {
+    return fetchApi<{ logs: AuditLog[] }>('/audit-logs', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async updateUser(userId: string, userData: Partial<AdminUser>, token: string): Promise<ApiResponse<{}>> {
     return fetchApi<{}>(`/admin/users/${userId}`, {
       method: 'PUT',
       headers: {
@@ -297,7 +316,7 @@ export const adminApi = {
     });
   },
 
-  deleteUser: async (userId: string, token: string) => {
+  async deleteUser(userId: string, token: string): Promise<ApiResponse<{}>> {
     return fetchApi<{}>(`/users/${userId}`, {
       method: 'DELETE',
       headers: {
@@ -306,7 +325,7 @@ export const adminApi = {
     });
   },
 
-  approveUser: async (userId: string, server: string, resources: { cpu: string; ram: string; gpu: string }, token: string) => {
+  async approveUser(userId: string, server: string, resources: { cpu: string; ram: string; gpu: string }, token: string): Promise<ApiResponse<{}>> {
     return fetchApi<{}>(`/admin/users/${userId}/approve`, {
       method: 'POST',
       headers: {
@@ -316,7 +335,7 @@ export const adminApi = {
     });
   },
 
-  createUser: async (userData: {
+  async createUser(userData: {
     name: string;
     email: string;
     password?: string;
@@ -324,13 +343,22 @@ export const adminApi = {
     status: string;
     server: string;
     resources: { cpu: string; ram: string; gpu: string };
-  }, token: string) => {
+  }, token: string): Promise<ApiResponse<{ message: string; defaultPassword: string }>> {
     return fetchApi<{ message: string; defaultPassword: string }>('/admin/users', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(userData),
+    });
+  },
+
+  async clearAuditLogs(token: string): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi<{ message: string }>('/audit-logs', {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
     });
   },
 };
