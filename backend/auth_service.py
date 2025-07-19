@@ -184,6 +184,7 @@ def get_admin_users():
             container_name = f"container-{user['username'][:2].lower()}-{user['id']:03d}"
             container_status = 'running' if user.get('is_approved') else 'stopped'
             
+            print(user)
             # Assign resources based on role
             if user.get('is_admin'):
                 resources = {'cpu': '8 cores', 'ram': '16GB', 'gpu': '2 cores, 24GB'}
@@ -253,9 +254,7 @@ def update_admin_user(user_id):
             update_fields['email'] = data['email']
         if 'role' in data:
             update_fields['is_admin'] = data['role'].lower() == 'admin'
-        if 'status' in data:
-            update_fields['is_approved'] = data['status'].lower() == 'running'
-        
+
         if db.update_user(user_id, update_fields):
             return jsonify({'success': True})
         return jsonify({'success': False, 'error': 'User not found'}), 404

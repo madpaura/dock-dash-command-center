@@ -181,7 +181,7 @@ class UserDatabase:
 
     def update_user(self, user_id: int, update_data: Dict) -> bool:
         """Update user information"""
-        allowed_fields = ['email', 'password', 'is_approved', 'redirect_url', 'status', 'metadata']
+        allowed_fields = ['email', 'password', 'is_approved', 'is_admin', 'redirect_url', 'status', 'metadata']
         update_fields = []
         values = []
         
@@ -260,8 +260,8 @@ class UserDatabase:
     def get_all_users(self, exclude_admin: bool = True) -> List[Dict]:
         """Get all users"""
         query = "SELECT * FROM users"
-        if exclude_admin:
-            query += " WHERE is_admin = FALSE"
+        # if exclude_admin:
+        #     query += " WHERE is_admin = FALSE"
             
         conn = self._get_connection()
         try:
