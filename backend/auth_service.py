@@ -832,6 +832,93 @@ def server_action(server_id):
         logger.error(f"Error performing server action: {e}")
         return jsonify({'success': False, 'error': 'Failed to perform server action'}), 500
 
+@app.route('/api/admin/servers', methods=['POST'])
+def add_server():
+    """Add a new server to the agents list"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'Request data required'}), 400
+    
+    # Validate required fields
+    name = data.get('name', '').strip()
+    ip = data.get('ip', '').strip()
+    port = data.get('port', '8511').strip()
+    description = data.get('description', '').strip()
+    tags = data.get('tags', [])
+    
+    if not name:
+        return jsonify({'success': False, 'error': 'Server name is required'}), 400
+    
+    if not ip:
+        return jsonify({'success': False, 'error': 'IP address is required'}), 400
+    
+    # Validate IP address
+    if not is_valid_ip(ip):
+        return jsonify({'success': False, 'error': 'Invalid IP address format'}), 400
+    
+    # Validate port
+    try:
+        port_num = int(port)
+        if port_num < 1 or port_num > 65535:
+            return jsonify({'success': False, 'error': 'Port must be between 1 and 65535'}), 400
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid port number'}), 400
+    
+    try:
+        # Read existing agents
+        agents = read_agents()
+        
+        # Check if IP already exists
+        if ip in agents:
+            return jsonify({'success': False, 'error': 'Server with this IP already exists'}), 400
+        
+        # Add new server to agents list
+        agents.append(ip)
+        write_agents(agents)
+        
+        # Log the action
+        admin_username = get_admin_username_from_token()
+        db.log_audit_event(
+            username=admin_username,
+            action_type='server_added',
+            action_details={
+                'message': f'Added new server: {name} ({ip}:{port})',
+                'server_name': name,
+                'server_ip': ip,
+                'server_port': port,
+                'description': description,
+                'tags': tags
+            },
+            ip_address=request.remote_addr
+        )
+        
+        logger.info(f"Server added by {admin_username}: {name} ({ip}:{port})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Server {name} added successfully',
+            'server': {
+                'name': name,
+                'ip': ip,
+                'port': port,
+                'description': description,
+                'tags': tags
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error adding server: {e}")
+        return jsonify({'success': False, 'error': 'Failed to add server'}), 500
+
 # SSH session management
 ssh_sessions = {}
 ssh_session_outputs = {}

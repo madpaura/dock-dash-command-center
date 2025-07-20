@@ -431,6 +431,25 @@ export const serverApi = {
     });
   },
 
+  addServer(
+    serverData: {
+      name: string;
+      ip: string;
+      port: string;
+      description: string;
+      tags: string[];
+    },
+    token: string
+  ): Promise<ApiResponse<{ message: string; server: any }>> {
+    return fetchApi('/admin/servers', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(serverData),
+    });
+  },
+
   // SSH functionality
   sshConnect(
     serverId: string,

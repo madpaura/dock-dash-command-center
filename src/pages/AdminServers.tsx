@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { ServerSettingsDialog } from '../components/ServerSettingsDialog';
 import { SSHTerminal } from '../components/SSHTerminal';
 import { SSHConnectionDialog } from '../components/SSHConnectionDialog';
+import { AddServerDialog } from '../components/AddServerDialog';
 
 export const AdminServers: React.FC = () => {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ export const AdminServers: React.FC = () => {
   const [sshServer, setSshServer] = useState<ServerInfo | null>(null);
   const [sshConnectionDialogOpen, setSshConnectionDialogOpen] = useState(false);
   const [sshConfig, setSshConfig] = useState<any>(null);
+  const [addServerDialogOpen, setAddServerDialogOpen] = useState(false);
 
   const fetchServerData = async () => {
     if (!token) return;
@@ -107,6 +109,31 @@ export const AdminServers: React.FC = () => {
   const handleSSHConnect = (config: any) => {
     setSshConfig(config);
     setSshTerminalOpen(true);
+  };
+
+  const handleAddServer = async (serverData: {
+    name: string;
+    ip: string;
+    port: string;
+    description: string;
+    tags: string[];
+  }) => {
+    if (!token) throw new Error('No authentication token');
+    
+    try {
+      const response = await serverApi.addServer(serverData, token);
+      
+      if (response.success) {
+        // Refresh server data to show the new server
+        await fetchServerData();
+        setError(null);
+      } else {
+        throw new Error(response.error || 'Failed to add server');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to add server');
+      throw err;
+    }
   };
 
   useEffect(() => {
@@ -218,7 +245,7 @@ export const AdminServers: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => setAddServerDialogOpen(true)}>
             <Plus className="w-4 h-4" />
             Add Server
           </Button>
@@ -370,6 +397,12 @@ export const AdminServers: React.FC = () => {
         open={sshConnectionDialogOpen}
         onOpenChange={setSshConnectionDialogOpen}
         onConnect={handleSSHConnect}
+      />
+
+      <AddServerDialog
+        open={addServerDialogOpen}
+        onOpenChange={setAddServerDialogOpen}
+        onAddServer={handleAddServer}
       />
     </div>
   );
