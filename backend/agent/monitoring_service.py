@@ -77,15 +77,29 @@ def on_exit():
 
 atexit.register(on_exit)
 
+# Simple cache for agent resources
+_resource_cache = {
+    'data': None,
+    'timestamp': 0,
+    'cache_duration': 10  # Cache for 10 seconds
+}
+
 def get_agent_resources():
     """
     Fetch server resource information (CPU, memory, Docker instances, etc.).
+    Optimized for better performance by reducing Docker API calls.
     """
-    client = docker.from_env()
-    containers = client.containers.list()
-
+    current_time = time.time()
+    
+    # Check if we have valid cached data
+    if (_resource_cache['data'] is not None and 
+        current_time - _resource_cache['timestamp'] < _resource_cache['cache_duration']):
+        return _resource_cache['data']
+    
+    # Cache miss or expired, fetch fresh data
+    # Get system resources first (these are fast)
     cpu_count = psutil.cpu_count()
-    cpu_percent = psutil.cpu_percent()
+    cpu_percent = psutil.cpu_percent(interval=0.1)  # Short interval for faster response
     memory_info = psutil.virtual_memory()
     total_memory = memory_info.total / (1024**3)
 
@@ -101,45 +115,86 @@ def get_agent_resources():
     uptime_minutes = (uptime_seconds % 3600) // 60
     uptime = f"{int(uptime_days)}d {int(uptime_hours)}h {int(uptime_minutes)}m"
 
+    # Initialize Docker-related variables
     docker_instances = 0
     allocated_cpu = 0
-    allocated_memory = 0 
+    allocated_memory = 0
+    running_containers = 0
 
     try:
-        docker_instances = 0
-        for container in containers:
-            # if "code-server" in container.name:
-            stats = container.stats(stream=False)
-            docker_instances += 1
-            container_info = client.api.inspect_container(container.id)
-            host_config = container_info.get("HostConfig", {})
-            allocated_cpu += host_config.get("CpuCount") 
-            allocated_memory += host_config.get("Memory") / (1024 **3)
-            logger.info(f"{allocated_cpu}, {allocated_memory}")
+        # Use Docker client with timeout for better performance
+        client = docker.from_env(timeout=5)
+        
+        # Get only running containers (faster than all containers)
+        containers = client.containers.list(filters={'status': 'running'})
+        running_containers = len(containers)
+        
+        # Optimized container processing - avoid expensive API calls
+        code_server_containers = [c for c in containers if "code-server" in c.name]
+        docker_instances = len(code_server_containers)
+        
+        # Only inspect containers if we need detailed resource allocation
+        # For basic monitoring, we can skip the expensive inspect calls
+        if docker_instances > 0:
+            # Use batch processing for better performance
+            for container in code_server_containers:
+                try:
+                    # Get container info in one call (faster than separate stats + inspect)
+                    container.reload()  # Refresh container info
+                    attrs = container.attrs
+                    host_config = attrs.get("HostConfig", {})
+                    
+                    # Extract resource limits (these are set at container creation)
+                    cpu_limit = host_config.get("CpuCount", 0)
+                    memory_limit = host_config.get("Memory", 0)
+                    
+                    if cpu_limit:
+                        allocated_cpu += cpu_limit
+                    if memory_limit:
+                        allocated_memory += memory_limit / (1024**3)
+                        
+                except Exception as container_error:
+                    logger.debug(f"Error processing container {container.name}: {container_error}")
+                    continue
 
     except DockerException as e:
-        logger.error(f"Error fetching Docker container stats: {e}")
+        logger.warning(f"Docker not available or error: {e}")
         docker_instances = 0
         allocated_cpu = 0
         allocated_memory = 0
+        running_containers = 0
+    except Exception as e:
+        logger.error(f"Unexpected error fetching Docker stats: {e}")
+        docker_instances = 0
+        allocated_cpu = 0
+        allocated_memory = 0
+        running_containers = 0
         
     remaining_cpu = cpu_count - allocated_cpu
     remaining_memory = total_memory - allocated_memory
 
-    return {
+    # Prepare the response data
+    resource_data = {
         "cpu_count": cpu_count,
         "total_memory": round(total_memory, 2),
         "host_cpu_used": cpu_percent,
-        "host_memory_used": round(memory_info.used / (1024**3),2),
+        "host_memory_used": round(memory_info.used / (1024**3), 2),
         "total_disk": round(total_disk, 2),
         "used_disk": round(used_disk, 2),
         "uptime": uptime,
         "docker_instances": docker_instances,
+        "running_containers": running_containers,  # Total running containers
         "allocated_cpu": allocated_cpu,
         "allocated_memory": round(allocated_memory, 2),
         "remaining_cpu": remaining_cpu,
         "remaining_memory": round(remaining_memory, 2),
     }
+    
+    # Update cache
+    _resource_cache['data'] = resource_data
+    _resource_cache['timestamp'] = current_time
+    
+    return resource_data
 
 def init_stats_routes(app):
     @app.route('/get_resources', methods=['GET'])

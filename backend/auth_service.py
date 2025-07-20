@@ -612,6 +612,102 @@ def clear_audit_logs():
 from agent_manager import query_available_agents
 import time
 
+# Server data caching
+server_data_cache = {
+    'data': None,
+    'timestamp': 0,
+    'cache_duration': 30  # Cache for 30 seconds
+}
+
+def get_cached_server_data():
+    """Get cached server data or fetch new data if cache is expired"""
+    current_time = time.time()
+    
+    # Check if cache is valid
+    if (server_data_cache['data'] is not None and 
+        current_time - server_data_cache['timestamp'] < server_data_cache['cache_duration']):
+        logger.debug("Using cached server data")
+        return server_data_cache['data']
+    
+    # Cache is expired or empty, fetch new data
+    logger.info("Fetching fresh server data")
+    agents_list = read_agents()
+    query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
+    
+    # Query all agents concurrently (this is the optimization!)
+    servers_resources = query_available_agents(agents_list, query_port)
+    
+    # Process the data
+    servers_data = []
+    stats_data = {
+        'totalServers': len(agents_list),
+        'onlineServers': 0,
+        'offlineServers': 0,
+        'maintenanceServers': 0,
+        'totalServersChange': 0,
+        'onlineServersChange': 0,
+        'offlineServersChange': 0,
+        'maintenanceServersChange': 0
+    }
+    
+    # Create a map of successful responses
+    resource_map = {res['server_id']: res for res in servers_resources}
+    
+    for agent_ip in agents_list:
+        if agent_ip in resource_map:
+            resource_data = resource_map[agent_ip]
+            status = 'online'
+            stats_data['onlineServers'] += 1
+            
+            # Calculate usage percentages
+            memory_total = resource_data.get('total_memory', 1)
+            memory_used = resource_data.get('host_memory_used', 0)
+            memory_usage = (memory_used / memory_total * 100) if memory_total > 0 else 0
+            
+            disk_total = resource_data.get('total_disk', 1)
+            disk_used = resource_data.get('used_disk', 0)
+            disk_usage = (disk_used / disk_total * 100) if disk_total > 0 else 0
+            
+            # Create server info dict with all resource data
+            server_info = {
+                'id': f'server-{agent_ip.replace(".", "-")}',
+                'ip': agent_ip,
+                'status': status,
+                'cpu': round(resource_data.get('host_cpu_used', 0), 1),
+                'memory': round(memory_usage, 1),
+                'disk': round(disk_usage, 1),
+                'uptime': resource_data.get('uptime', 'Unknown'),
+                'containers': resource_data.get('running_containers', 0),
+                'lastSeen': current_time
+            }
+        else:
+            # Server is offline
+            stats_data['offlineServers'] += 1
+            server_info = {
+                'id': f'server-{agent_ip.replace(".", "-")}',
+                'ip': agent_ip,
+                'status': 'offline',
+                'cpu': 0,
+                'memory': 0,
+                'disk': 0,
+                'uptime': 'Offline',
+                'containers': 0,
+                'lastSeen': 0
+            }
+        
+        servers_data.append(server_info)
+    
+    # Cache the results
+    cached_data = {
+        'servers': servers_data,
+        'stats': stats_data
+    }
+    
+    server_data_cache['data'] = cached_data
+    server_data_cache['timestamp'] = current_time
+    
+    return cached_data
+
 # Server resources endpoint
 @app.route('/api/server-resources', methods=['GET'])
 def get_server_resources():
@@ -637,90 +733,9 @@ def get_admin_servers():
         return jsonify({'success': False, 'error': 'Invalid session'}), 401
     
     try:
-        # Get registered agents
-        agents_list = read_agents()
-        query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
-        
-        servers_data = []
-        
-        for agent_ip in agents_list:
-            try:
-                # Query agent for resources
-                resources = query_available_agents([agent_ip], query_port)
-                
-                if resources and len(resources) > 0:
-                    resource_data = resources[0]
-                    status = 'online'
-                    
-                    # Calculate usage percentages
-                    memory_total = resource_data.get('total_memory', 1)
-                    memory_used = resource_data.get('host_memory_used', 0)
-                    memory_usage = (memory_used / memory_total * 100) if memory_total > 0 else 0
-                    
-                    disk_total = resource_data.get('total_disk', 1)
-                    disk_used = resource_data.get('used_disk', 0)
-                    disk_usage = (disk_used / disk_total * 100) if disk_total > 0 else 0
-                    
-                    # Create server info dict with all resource data
-                    server_info = {
-                        'id': f'server-{agent_ip.replace(".", "-")}',
-                        'ip': agent_ip,
-                        'status': status,
-                        'cpu': round(resource_data.get('host_cpu_used', 0), 1),
-                        'memory': round(memory_usage, 1),
-                        'disk': round(disk_usage, 1),
-                        'uptime': resource_data.get('uptime', '-'),
-                        'type': 'compute',  # Could be enhanced based on actual server role
-                        'containers': resource_data.get('docker_instances', 0),
-                        'cpu_cores': resource_data.get('cpu_count', 0),
-                        'total_memory': memory_total,
-                        'allocated_cpu': resource_data.get('allocated_cpu', 0),
-                        'allocated_memory': resource_data.get('allocated_memory', 0),
-                        'remaining_cpu': resource_data.get('remaining_cpu', 0),
-                        'remaining_memory': resource_data.get('remaining_memory', 0)
-                    }
-                else:
-                    # Default values for offline server
-                    server_info = {
-                        'id': f'server-{agent_ip.replace(".", "-")}',
-                        'ip': agent_ip,
-                        'status': 'offline',
-                        'cpu': 0,
-                        'memory': 0,
-                        'disk': 0,
-                        'uptime': '-',
-                        'type': 'unknown',
-                        'containers': 0,
-                        'cpu_cores': 0,
-                        'total_memory': 0,
-                        'allocated_cpu': 0,
-                        'allocated_memory': 0,
-                        'remaining_cpu': 0,
-                        'remaining_memory': 0
-                    }
-                
-                servers_data.append(server_info)
-                
-            except Exception as e:
-                logger.error(f"Error querying server {agent_ip}: {e}")
-                # Add offline server with the same structure as above
-                servers_data.append({
-                    'id': f'server-{agent_ip.replace(".", "-")}',
-                    'ip': agent_ip,
-                    'status': 'error',
-                    'cpu': 0,
-                    'memory': 0,
-                    'disk': 0,
-                    'uptime': '-',
-                    'type': 'unknown',
-                    'containers': 0,
-                    'cpu_cores': 0,
-                    'total_memory': 0,
-                    'allocated_cpu': 0,
-                    'allocated_memory': 0,
-                    'remaining_cpu': 0,
-                    'remaining_memory': 0
-                })
+        # Use cached data for better performance
+        cached_data = get_cached_server_data()
+        servers_data = cached_data['servers']
         
         return jsonify({
             'success': True,
@@ -744,39 +759,9 @@ def get_server_stats():
         return jsonify({'success': False, 'error': 'Invalid session'}), 401
     
     try:
-        # Get registered agents
-        agents_list = read_agents()
-        query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
-        
-        total_servers = len(agents_list)
-        online_servers = 0
-        offline_servers = 0
-        maintenance_servers = 0
-        
-        # Query each server to determine status
-        for agent_ip in agents_list:
-            try:
-                resources = query_available_agents([agent_ip], query_port)
-                if resources and len(resources) > 0:
-                    online_servers += 1
-                else:
-                    offline_servers += 1
-            except Exception:
-                offline_servers += 1
-        
-        # For now, maintenance servers are manually configured (could be enhanced)
-        # maintenance_servers would be tracked separately
-        
-        stats = {
-            'totalServers': total_servers,
-            'totalServersChange': '+0',  # Would need historical data
-            'onlineServers': online_servers,
-            'onlineServersChange': '+0',  # Would need historical data
-            'offlineServers': offline_servers,
-            'offlineServersChange': '+0',  # Would need historical data
-            'maintenanceServers': maintenance_servers,
-            'maintenanceServersChange': '+0'  # Would need historical data
-        }
+        # Use cached data for better performance
+        cached_data = get_cached_server_data()
+        stats = cached_data['stats']
         
         return jsonify({
             'success': True,
@@ -884,6 +869,10 @@ def add_server():
         # Add new server to agents list
         agents.append(ip)
         write_agents(agents)
+        
+        # Invalidate cache so fresh data is fetched
+        server_data_cache['data'] = None
+        server_data_cache['timestamp'] = 0
         
         # Log the action
         admin_username = get_admin_username_from_token()
