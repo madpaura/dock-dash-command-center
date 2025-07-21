@@ -354,7 +354,7 @@ export const adminApi = {
   },
 
   async clearAuditLogs(token: string): Promise<ApiResponse<{ message: string }>> {
-    return fetchApi<{ message: string }>('/admin/audit-logs', {
+    return fetchApi<{ message: string }>('/audit-logs', {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,

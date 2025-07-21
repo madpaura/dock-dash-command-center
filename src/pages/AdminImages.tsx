@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Search, 
   Trash2, 
-  Download, 
+  RefreshCw, 
   ChevronDown, 
   ChevronRight,
   History,
@@ -88,23 +88,45 @@ export const AdminImages: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      // Clear images at the start of loading to ensure clean state
+      setImages([]);
       const serverId = selectedServer === 'all' ? undefined : selectedServer;
       const response = await dockerApi.getDockerImages(user.token, serverId);
       
       if (response.success && response.data) {
+        // Check if there's an error in the response data itself
+        const responseData = response.data as any;
+        if (responseData.error) {
+          setImages([]); // Clear images first
+          setError(responseData.error);
+          return;
+        }
+        
+        // Check if servers array is empty but we expected data
+        if (response.data.servers.length === 0 && response.data.total_servers === 0) {
+          setError('No servers available or all servers are offline');
+          setImages([]);
+          return;
+        }
+        
         // Flatten images from all servers
         const allImages: BackendDockerImage[] = [];
         response.data.servers.forEach(server => {
-          if (server.images) {
+          if (server.error) {
+            // Individual server has an error, but continue with other servers
+            console.warn(`Server ${server.server_id} error:`, server.error);
+          } else if (server.images) {
             allImages.push(...server.images);
           }
         });
         setImages(allImages);
       } else {
         setError(response.error || 'Failed to load Docker images');
+        setImages([]); // Clear images on error
       }
     } catch (err) {
       setError('Failed to load Docker images');
+      setImages([]); // Clear images on error
     } finally {
       setLoading(false);
     }
@@ -226,7 +248,7 @@ export const AdminImages: React.FC = () => {
                 />
               </div>
               <Button onClick={handleRefresh} disabled={loading || refreshing}>
-                <Download className="h-4 w-4 mr-2" />
+                <RefreshCw className="h-4 w-4 mr-2" />
                 {refreshing ? 'Refreshing...' : 'Refresh'}
               </Button>
             </div>
@@ -246,9 +268,8 @@ export const AdminImages: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredImages.map((image) => (
-                <React.Fragment key={image.id}>
-                  <TableRow className="hover:bg-muted/50">
+              {filteredImages.map((image, index) => (
+                  <TableRow key={`${image.id}-${image.repository}-${image.tag}-${index}`} className="hover:bg-muted/50">
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -291,8 +312,14 @@ export const AdminImages: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                </React.Fragment>
               ))}
+              {filteredImages.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    {loading ? 'Loading images...' : error ? 'No images to display due to error' : 'No Docker images found'}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
