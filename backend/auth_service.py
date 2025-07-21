@@ -1247,6 +1247,150 @@ def unregister_agent():
     
     return jsonify({"valid": True, "message": "Agent unregistered successfully"}), 200
 
+# Docker Images management endpoints
+from agent_manager import query_agent_docker_images, query_agent_docker_image_details, query_multiple_agents_docker_images
+
+@app.route('/api/admin/docker-images', methods=['GET'])
+def get_docker_images():
+    """Get Docker images from all servers or a specific server"""
+    try:
+        # Check authentication
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'No authorization token provided'}), 401
+        
+        token = auth_header.split(' ')[1]
+        session = db.verify_session(token)
+        
+        if not session:
+            return jsonify({'error': 'Invalid session token'}), 401
+        
+        # Get server filter from query parameters
+        server_id = request.args.get('server_id')
+        
+        # Get list of available agents
+        agents = read_agents()
+        query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
+        
+        if server_id:
+            # Query specific server
+            if server_id not in agents:
+                return jsonify({'error': 'Server not found'}), 404
+            
+            result = query_agent_docker_images(server_id, query_port)
+            if result:
+                return jsonify({
+                    'servers': [result],
+                    'total_servers': 1,
+                    'timestamp': time.time()
+                })
+            else:
+                return jsonify({
+                    'servers': [],
+                    'total_servers': 0,
+                    'error': f'Failed to get Docker images from server {server_id}',
+                    'timestamp': time.time()
+                })
+        else:
+            # Query all servers
+            results = query_multiple_agents_docker_images(agents, query_port)
+            
+            return jsonify({
+                'servers': results,
+                'total_servers': len(results),
+                'timestamp': time.time()
+            })
+    
+    except Exception as e:
+        logger.error(f"Error getting Docker images: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/admin/docker-images/<server_id>/<image_id>/details', methods=['GET'])
+def get_docker_image_details(server_id, image_id):
+    """Get detailed information about a specific Docker image from a server"""
+    try:
+        # Check authentication
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'No authorization token provided'}), 401
+        
+        token = auth_header.split(' ')[1]
+        session = db.verify_session(token)
+        
+        if not session:
+            return jsonify({'error': 'Invalid session token'}), 401
+        
+        # Check if server exists
+        agents = read_agents()
+        query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
+        if server_id not in agents:
+            return jsonify({'error': 'Server not found'}), 404
+        
+        # Query image details from specific server
+        result = query_agent_docker_image_details(server_id, image_id, query_port)
+        
+        if result:
+            return jsonify(result)
+        else:
+            return jsonify({
+                'error': f'Failed to get image details from server {server_id}'
+            }), 500
+    
+    except Exception as e:
+        logger.error(f"Error getting Docker image details: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/admin/servers/list', methods=['GET'])
+def get_servers_list():
+    """Get list of available servers for Docker images management"""
+    try:
+        # Check authentication
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'No authorization token provided'}), 401
+        
+        token = auth_header.split(' ')[1]
+        session = db.verify_session(token)
+        
+        if not session:
+            return jsonify({'error': 'Invalid session token'}), 401
+        
+        # Get list of available agents
+        agents = read_agents()
+        
+        # Get basic server information (from cached data if available)
+        cached_data = get_cached_server_data()
+        server_data = cached_data.get('servers', [])
+        
+        # Transform to simple server list format
+        servers = []
+        for agent_ip in agents:
+            server_info = {
+                'id': agent_ip,
+                'ip': agent_ip,
+                'name': f'Server {agent_ip}',
+                'status': 'unknown'
+            }
+            
+            # Try to get status from cached server data
+            for server in server_data:
+                if server.get('ip') == agent_ip:
+                    server_info['status'] = server.get('status', 'unknown')
+                    server_info['name'] = f'Server {agent_ip}'
+                    break
+            
+            servers.append(server_info)
+        
+        return jsonify({
+            'servers': servers,
+            'total_count': len(servers),
+            'timestamp': time.time()
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting servers list: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 if __name__ == '__main__':
     config_path = os.path.join('.streamlit', 'config.toml')
     if os.path.exists(config_path):

@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Table,
   TableBody,
@@ -36,98 +39,87 @@ import {
   Hash
 } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
-
-interface DockerImage {
-  id: string;
-  repository: string;
-  tag: string;
-  imageId: string;
-  size: string;
-  created: string;
-  layers: ImageLayer[];
-  history: ImageHistory[];
-}
-
-interface ImageLayer {
-  id: string;
-  size: string;
-  command: string;
-  created: string;
-}
-
-interface ImageHistory {
-  id: string;
-  created: string;
-  createdBy: string;
-  size: string;
-  comment?: string;
-}
-
-// Mock data
-const mockImages: DockerImage[] = [
-  {
-    id: '1',
-    repository: 'nginx',
-    tag: 'latest',
-    imageId: 'sha256:abc123...',
-    size: '142MB',
-    created: '2024-01-15T10:30:00Z',
-    layers: [
-      { id: 'layer1', size: '80MB', command: 'FROM debian:bullseye-slim', created: '2024-01-15T10:25:00Z' },
-      { id: 'layer2', size: '35MB', command: 'RUN apt-get update && apt-get install -y nginx', created: '2024-01-15T10:27:00Z' },
-      { id: 'layer3', size: '27MB', command: 'COPY nginx.conf /etc/nginx/', created: '2024-01-15T10:30:00Z' },
-    ],
-    history: [
-      { id: 'hist1', created: '2024-01-15T10:25:00Z', createdBy: 'FROM debian:bullseye-slim', size: '80MB' },
-      { id: 'hist2', created: '2024-01-15T10:27:00Z', createdBy: 'RUN apt-get update && apt-get install -y nginx', size: '35MB' },
-      { id: 'hist3', created: '2024-01-15T10:30:00Z', createdBy: 'COPY nginx.conf /etc/nginx/', size: '27MB' },
-    ]
-  },
-  {
-    id: '2',
-    repository: 'mysql',
-    tag: '8.0',
-    imageId: 'sha256:def456...',
-    size: '521MB',
-    created: '2024-01-14T15:20:00Z',
-    layers: [
-      { id: 'layer4', size: '200MB', command: 'FROM ubuntu:20.04', created: '2024-01-14T15:15:00Z' },
-      { id: 'layer5', size: '221MB', command: 'RUN apt-get update && apt-get install -y mysql-server', created: '2024-01-14T15:18:00Z' },
-      { id: 'layer6', size: '100MB', command: 'COPY my.cnf /etc/mysql/', created: '2024-01-14T15:20:00Z' },
-    ],
-    history: [
-      { id: 'hist4', created: '2024-01-14T15:15:00Z', createdBy: 'FROM ubuntu:20.04', size: '200MB' },
-      { id: 'hist5', created: '2024-01-14T15:18:00Z', createdBy: 'RUN apt-get update && apt-get install -y mysql-server', size: '221MB' },
-      { id: 'hist6', created: '2024-01-14T15:20:00Z', createdBy: 'COPY my.cnf /etc/mysql/', size: '100MB' },
-    ]
-  },
-  {
-    id: '3',
-    repository: 'redis',
-    tag: 'alpine',
-    imageId: 'sha256:ghi789...',
-    size: '32MB',
-    created: '2024-01-13T08:45:00Z',
-    layers: [
-      { id: 'layer7', size: '5MB', command: 'FROM alpine:3.18', created: '2024-01-13T08:40:00Z' },
-      { id: 'layer8', size: '27MB', command: 'RUN apk add --no-cache redis', created: '2024-01-13T08:45:00Z' },
-    ],
-    history: [
-      { id: 'hist7', created: '2024-01-13T08:40:00Z', createdBy: 'FROM alpine:3.18', size: '5MB' },
-      { id: 'hist8', created: '2024-01-13T08:45:00Z', createdBy: 'RUN apk add --no-cache redis', size: '27MB' },
-    ]
-  },
-];
+import { dockerApi, DockerImage as BackendDockerImage, DockerImagesResponse, ServerListItem } from '@/lib/docker-api';
 
 export const AdminImages: React.FC = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [images] = useState<DockerImage[]>(mockImages);
+  const [images, setImages] = useState<BackendDockerImage[]>([]);
+  const [servers, setServers] = useState<ServerListItem[]>([]);
+  const [selectedServer, setSelectedServer] = useState<string>('all');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Load servers list on component mount
+  useEffect(() => {
+    loadServers();
+  }, []);
+
+  // Load images when server selection changes
+  useEffect(() => {
+    if (servers.length > 0) {
+      loadImages();
+    }
+  }, [selectedServer, servers]);
+
+  const loadServers = async () => {
+    if (!user?.token) return;
+    
+    try {
+      setLoading(true);
+      const response = await dockerApi.getServersList(user.token);
+      if (response.success && response.data) {
+        setServers(response.data.servers);
+      } else {
+        setError(response.error || 'Failed to load servers');
+      }
+    } catch (err) {
+      setError('Failed to load servers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadImages = async () => {
+    if (!user?.token) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const serverId = selectedServer === 'all' ? undefined : selectedServer;
+      const response = await dockerApi.getDockerImages(user.token, serverId);
+      
+      if (response.success && response.data) {
+        // Flatten images from all servers
+        const allImages: BackendDockerImage[] = [];
+        response.data.servers.forEach(server => {
+          if (server.images) {
+            allImages.push(...server.images);
+          }
+        });
+        setImages(allImages);
+      } else {
+        setError(response.error || 'Failed to load Docker images');
+      }
+    } catch (err) {
+      setError('Failed to load Docker images');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadImages();
+    setRefreshing(false);
+  };
 
   const filteredImages = images.filter(image =>
     image.repository.toLowerCase().includes(searchTerm.toLowerCase()) ||
     image.tag.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    image.imageId.toLowerCase().includes(searchTerm.toLowerCase())
+    image.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const toggleRowExpansion = (imageId: string) => {
@@ -154,11 +146,15 @@ export const AdminImages: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  const totalSize = images.reduce((sum, image) => {
-    const size = parseFloat(image.size.replace(/[^\d.]/g, ''));
-    const unit = image.size.replace(/[\d.]/g, '');
-    return sum + (unit === 'GB' ? size * 1024 : size);
-  }, 0);
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const totalSize = images.reduce((sum, image) => sum + (image.size || 0), 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -170,6 +166,13 @@ export const AdminImages: React.FC = () => {
         </div>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
@@ -179,7 +182,7 @@ export const AdminImages: React.FC = () => {
         />
         <StatCard
           title="Total Size"
-          value={`${(totalSize / 1024).toFixed(1)} GB`}
+          value={formatBytes(totalSize)}
           icon={Layers}
         />
         <StatCard
@@ -198,8 +201,21 @@ export const AdminImages: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Images</CardTitle>
+            <CardTitle>Docker Images</CardTitle>
             <div className="flex items-center space-x-2">
+              <Select value={selectedServer} onValueChange={setSelectedServer}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select server" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Servers</SelectItem>
+                  {servers.map((server) => (
+                    <SelectItem key={server.id} value={server.id}>
+                      {server.name} ({server.status})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -209,9 +225,9 @@ export const AdminImages: React.FC = () => {
                   className="pl-8 w-[250px]"
                 />
               </div>
-              <Button>
+              <Button onClick={handleRefresh} disabled={loading || refreshing}>
                 <Download className="h-4 w-4 mr-2" />
-                Pull Image
+                {refreshing ? 'Refreshing...' : 'Refresh'}
               </Button>
             </div>
           </div>
@@ -251,79 +267,19 @@ export const AdminImages: React.FC = () => {
                       <Badge variant="secondary">{image.tag}</Badge>
                     </TableCell>
                     <TableCell className="font-mono text-sm">
-                      {image.imageId.substring(0, 20)}...
+                      {image.short_id || image.id.substring(0, 20)}...
                     </TableCell>
-                    <TableCell>{image.size}</TableCell>
+                    <TableCell>{formatBytes(image.size || 0)}</TableCell>
                     <TableCell>{formatDate(image.created)}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Layers className="h-4 w-4 mr-1" />
-                              Layers
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-4xl">
-                            <DialogHeader>
-                              <DialogTitle>Image Layers - {image.repository}:{image.tag}</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-2">
-                              {image.layers.map((layer, index) => (
-                                <div key={layer.id} className="border rounded-lg p-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-2">
-                                      <Badge variant="outline">Layer {index + 1}</Badge>
-                                      <span className="font-mono text-sm">{layer.id}</span>
-                                    </div>
-                                    <Badge>{layer.size}</Badge>
-                                  </div>
-                                  <p className="text-sm text-muted-foreground mt-2">{layer.command}</p>
-                                  <p className="text-xs text-muted-foreground">{formatDate(layer.created)}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <History className="h-4 w-4 mr-1" />
-                              History
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-4xl">
-                            <DialogHeader>
-                              <DialogTitle>Image History - {image.repository}:{image.tag}</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-2">
-                              {image.history.map((entry, index) => (
-                                <div key={entry.id} className="border rounded-lg p-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-2">
-                                      <Badge variant="outline">Step {index + 1}</Badge>
-                                      <span className="text-sm">{formatDate(entry.created)}</span>
-                                    </div>
-                                    <Badge>{entry.size}</Badge>
-                                  </div>
-                                  <p className="text-sm text-muted-foreground mt-2">{entry.createdBy}</p>
-                                  {entry.comment && (
-                                    <p className="text-xs text-muted-foreground mt-1">{entry.comment}</p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-
-                        <Button
-                          variant="outline"
+                        <Button 
+                          variant="outline" 
                           size="sm"
-                          onClick={() => handlePullImage(image.repository, image.tag)}
+                          onClick={() => console.log('View details for:', image.id)}
                         >
-                          <Download className="h-4 w-4 mr-1" />
-                          Pull
+                          <Layers className="h-4 w-4 mr-1" />
+                          Details
                         </Button>
                         <Button
                           variant="destructive"
@@ -335,39 +291,6 @@ export const AdminImages: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                  
-                  {expandedRows.has(image.id) && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="bg-muted/30">
-                        <div className="p-4 space-y-4">
-                          <div>
-                            <h4 className="font-semibold mb-2">Quick Layer Overview</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {image.layers.slice(0, 4).map((layer, index) => (
-                                <div key={layer.id} className="bg-background border rounded p-2">
-                                  <div className="flex items-center justify-between text-sm">
-                                    <span>Layer {index + 1}</span>
-                                    <Badge variant="secondary" className="text-xs">{layer.size}</Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-1 truncate">
-                                    {layer.command}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                            <span>Total Layers: {image.layers.length}</span>
-                            <span>•</span>
-                            <span>Created: {formatDate(image.created)}</span>
-                            <span>•</span>
-                            <span>ID: {image.imageId}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </React.Fragment>
               ))}
             </TableBody>

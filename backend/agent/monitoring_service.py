@@ -196,9 +196,165 @@ def get_agent_resources():
     
     return resource_data
 
+def get_docker_images():
+    """
+    Fetch Docker images information from the local Docker daemon.
+    Returns detailed information about each image including layers and history.
+    """
+    try:
+        # Initialize Docker client with timeout
+        client = docker.from_env(timeout=5)
+        
+        # Get all images
+        images = client.images.list()
+        logger.info(images)
+        image_data = []
+        
+        for image in images:
+            try:
+                # Get image attributes
+                attrs = image.attrs
+                
+                # Extract basic image information
+                image_info = {
+                    'id': image.id,
+                    'short_id': image.short_id,
+                    'tags': image.tags or ['<none>:<none>'],
+                    'size': attrs.get('Size', 0),
+                    'virtual_size': attrs.get('VirtualSize', 0),
+                    'created': attrs.get('Created', ''),
+                    'architecture': attrs.get('Architecture', 'unknown'),
+                    'os': attrs.get('Os', 'unknown'),
+                    'parent': attrs.get('Parent', ''),
+                    'comment': attrs.get('Comment', ''),
+                    'author': attrs.get('Author', ''),
+                    'config': attrs.get('Config', {}),
+                }
+                
+                # Extract repository and tag information
+                if image.tags:
+                    for tag in image.tags:
+                        if ':' in tag:
+                            repo, tag_name = tag.rsplit(':', 1)
+                        else:
+                            repo, tag_name = tag, 'latest'
+                        
+                        image_entry = image_info.copy()
+                        image_entry.update({
+                            'repository': repo,
+                            'tag': tag_name,
+                            'full_tag': tag
+                        })
+                        image_data.append(image_entry)
+                else:
+                    # Handle untagged images
+                    image_entry = image_info.copy()
+                    image_entry.update({
+                        'repository': '<none>',
+                        'tag': '<none>',
+                        'full_tag': '<none>:<none>'
+                    })
+                    image_data.append(image_entry)
+                    
+            except Exception as e:
+                logger.warning(f"Error processing image {image.id}: {e}")
+                continue
+        
+        # Sort by creation date (newest first)
+        image_data.sort(key=lambda x: x.get('created', ''), reverse=True)
+        
+        return {
+            'images': image_data,
+            'total_count': len(image_data),
+            'total_size': sum(img.get('size', 0) for img in image_data),
+            'timestamp': time.time()
+        }
+        
+    except DockerException as e:
+        logger.error(f"Docker daemon not available: {e}")
+        return {
+            'error': 'Docker daemon not available',
+            'images': [],
+            'total_count': 0,
+            'total_size': 0,
+            'timestamp': time.time()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching Docker images: {e}")
+        return {
+            'error': f'Error fetching Docker images: {str(e)}',
+            'images': [],
+            'total_count': 0,
+            'total_size': 0,
+            'timestamp': time.time()
+        }
+
+def get_docker_image_details(image_id):
+    """
+    Get detailed information about a specific Docker image including layers and history.
+    """
+    try:
+        client = docker.from_env(timeout=5)
+        
+        # Get the specific image
+        image = client.images.get(image_id)
+        attrs = image.attrs
+        
+        # Extract layers information
+        layers = []
+        if 'RootFS' in attrs and 'Layers' in attrs['RootFS']:
+            for i, layer_id in enumerate(attrs['RootFS']['Layers']):
+                layers.append({
+                    'id': layer_id,
+                    'index': i,
+                    'size': 'unknown'  # Layer size is not directly available
+                })
+        
+        # Extract history information
+        history = []
+        if 'History' in attrs:
+            for i, hist_entry in enumerate(attrs['History']):
+                history.append({
+                    'id': f"hist_{i}",
+                    'created': hist_entry.get('Created', ''),
+                    'created_by': hist_entry.get('CreatedBy', ''),
+                    'size': hist_entry.get('Size', 0),
+                    'comment': hist_entry.get('Comment', ''),
+                    'empty_layer': hist_entry.get('EmptyLayer', False)
+                })
+        
+        return {
+            'image_id': image_id,
+            'layers': layers,
+            'history': history,
+            'config': attrs.get('Config', {}),
+            'architecture': attrs.get('Architecture', 'unknown'),
+            'os': attrs.get('Os', 'unknown'),
+            'timestamp': time.time()
+        }
+        
+    except DockerException as e:
+        logger.error(f"Docker daemon not available: {e}")
+        return {'error': 'Docker daemon not available'}
+    except Exception as e:
+        logger.error(f"Error fetching image details for {image_id}: {e}")
+        return {'error': f'Error fetching image details: {str(e)}'}
+
 def init_stats_routes(app):
     @app.route('/get_resources', methods=['GET'])
     def get_resources():
         resources = get_agent_resources()
         print(resources)
         return jsonify(resources)
+    
+    @app.route('/get_docker_images', methods=['GET'])
+    def get_docker_images_route():
+        """Get all Docker images from this agent"""
+        images_data = get_docker_images()
+        return jsonify(images_data)
+    
+    @app.route('/get_docker_image_details/<image_id>', methods=['GET'])
+    def get_docker_image_details_route(image_id):
+        """Get detailed information about a specific Docker image"""
+        image_details = get_docker_image_details(image_id)
+        return jsonify(image_details)
