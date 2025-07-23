@@ -19,6 +19,7 @@ from services.ssh_service import SSHService
 from services.docker_service import DockerService
 from services.audit_service import AuditService
 from services.agent_service import AgentService
+from services.cleanup_service import CleanupService
 
 # Import utilities
 from utils.helpers import get_client_ip
@@ -47,6 +48,7 @@ server_service = ServerService(db, agent_service)
 ssh_service = SSHService(db)
 docker_service = DockerService(db, agent_service)
 audit_service = AuditService(db)
+cleanup_service = CleanupService(db)
 
 
 # Authentication endpoints
@@ -563,6 +565,98 @@ def clear_audit_logs():
     except Exception as e:
         logger.error(f"Error clearing audit logs: {e}")
         return jsonify({'success': False, 'error': 'Failed to clear logs'}), 500
+
+
+# Cleanup management endpoints
+@app.route('/api/admin/servers/<server_id>/cleanup/summary', methods=['POST'])
+def get_cleanup_summary(server_id):
+    """Get cleanup summary endpoint."""
+    try:
+        # Check authentication
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        session = auth_service.validate_session(token)
+        if not session:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        if not session.get('is_admin'):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        ssh_port = data.get('ssh_port', 22)
+        
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'SSH credentials required'}), 400
+        
+        # Extract IP from server_id
+        server_ip = server_id.replace('server-', '').replace('-', '.')
+        
+        # Get cleanup summary
+        result = cleanup_service.get_cleanup_summary(
+            server_ip=server_ip,
+            username=username,
+            password=password,
+            ssh_port=ssh_port
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"Error getting cleanup summary: {e}")
+        return jsonify({'success': False, 'error': 'Failed to get cleanup summary'}), 500
+
+
+@app.route('/api/admin/servers/<server_id>/cleanup/execute', methods=['POST'])
+def execute_cleanup(server_id):
+    """Execute cleanup endpoint."""
+    try:
+        # Check authentication
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        session = auth_service.validate_session(token)
+        if not session:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+        if not session.get('is_admin'):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        ssh_port = data.get('ssh_port', 22)
+        cleanup_options = data.get('cleanup_options', {})
+        
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'SSH credentials required'}), 400
+        
+        if not cleanup_options:
+            return jsonify({'success': False, 'error': 'Cleanup options required'}), 400
+        
+        # Extract IP from server_id
+        server_ip = server_id.replace('server-', '').replace('-', '.')
+        
+        # Execute cleanup
+        result = cleanup_service.execute_cleanup(
+            server_ip=server_ip,
+            username=username,
+            password=password,
+            cleanup_options=cleanup_options,
+            admin_username=session.get('username'),
+            ssh_port=ssh_port,
+            ip_address=get_client_ip(request)
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"Error executing cleanup: {e}")
+        return jsonify({'success': False, 'error': 'Failed to execute cleanup'}), 500
 
 
 # Agent management endpoints (for backward compatibility)

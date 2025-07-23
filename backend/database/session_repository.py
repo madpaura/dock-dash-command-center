@@ -33,7 +33,7 @@ class SessionRepository:
             conn.close()
 
     def verify_session(self, session_token: str) -> Optional[Dict]:
-        """Verify a session token."""
+        """Verify a session token and return user data if valid."""
         query = """
         SELECT u.* FROM users u
         JOIN user_sessions s ON u.id = s.user_id
@@ -45,7 +45,7 @@ class SessionRepository:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(query, (session_token,))
             session = cursor.fetchone()
-            return session is not None
+            return session
         finally:
             cursor.close()
             conn.close()

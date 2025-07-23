@@ -508,4 +508,108 @@ export const serverApi = {
       },
     });
   },
+
+  // Cleanup management
+  getCleanupSummary(
+    token: string,
+    serverId: string,
+    credentials: { username: string; password: string }
+  ): Promise<ApiResponse<CleanupSummary>> {
+    return fetchApi(`/admin/servers/${serverId}/cleanup/summary`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
+  },
+
+  executeCleanup(
+    token: string,
+    serverId: string,
+    request: {
+      username: string;
+      password: string;
+      cleanup_options: CleanupOptions;
+    }
+  ): Promise<ApiResponse<{ results: CleanupResult[] }>> {
+    return fetchApi(`/admin/servers/${serverId}/cleanup/execute`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+  },
 };
+
+// Cleanup management interfaces
+export interface ContainerInfo {
+  id: string;
+  image: string;
+  command: string;
+  created: string;
+  status: string;
+  ports: string;
+  names: string;
+}
+
+export interface ImageInfo {
+  repository: string;
+  tag: string;
+  id: string;
+  created: string;
+  size: string;
+}
+
+export interface DiskUsageInfo {
+  opt_usage_gb: number;
+  opt_usage_percent: number;
+  docker_system_usage: number;
+  root_usage_percent: number;
+  docker_data_usage_gb: number;
+}
+
+export interface CleanupSummary {
+  success: boolean;
+  server_ip: string;
+  containers: {
+    running: ContainerInfo[];
+    stopped: ContainerInfo[];
+    sizes_info: string;
+  };
+  docker_images: {
+    images: ImageInfo[];
+    dangling_images: ImageInfo[];
+    raw_output: string;
+  };
+  disk_usage: DiskUsageInfo;
+  summary: {
+    total_containers: number;
+    running_containers: number;
+    stopped_containers: number;
+    total_images: number;
+    total_disk_usage: number;
+  };
+}
+
+export interface CleanupOptions {
+  remove_stopped_containers: boolean;
+  remove_dangling_images: boolean;
+  remove_unused_volumes: boolean;
+  remove_unused_networks: boolean;
+  docker_system_prune: boolean;
+  remove_specific_containers: string[];
+  remove_specific_images: string[];
+}
+
+export interface CleanupResult {
+  operation: string;
+  success: boolean;
+  output?: string;
+  error?: string;
+  containers?: string[];
+  images?: string[];
+}

@@ -10,6 +10,7 @@ import { ServerSettingsDialog } from '../components/ServerSettingsDialog';
 import { SSHTerminal } from '../components/SSHTerminal';
 import { SSHConnectionDialog } from '../components/SSHConnectionDialog';
 import { AddServerDialog } from '../components/AddServerDialog';
+import { ServerCleanupDialog } from '../components/ServerCleanupDialog';
 
 export const AdminServers: React.FC = () => {
   const { user } = useAuth();
@@ -26,6 +27,8 @@ export const AdminServers: React.FC = () => {
   const [sshConnectionDialogOpen, setSshConnectionDialogOpen] = useState(false);
   const [sshConfig, setSshConfig] = useState<any>(null);
   const [addServerDialogOpen, setAddServerDialogOpen] = useState(false);
+  const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false);
+  const [cleanupServer, setCleanupServer] = useState<ServerInfo | null>(null);
 
   const fetchServerData = async () => {
     if (!token) return;
@@ -64,6 +67,16 @@ export const AdminServers: React.FC = () => {
 
   const handleServerAction = async (serverId: string, action: string) => {
     if (!token) return;
+    
+    // Handle cleanup actions by opening the cleanup dialog
+    if (action === 'remove_containers' || action === 'cleanup_disk') {
+      const server = servers.find(s => s.id === serverId);
+      if (server) {
+        setCleanupServer(server);
+        setCleanupDialogOpen(true);
+      }
+      return;
+    }
     
     try {
       const response = await serverApi.performServerAction(serverId, action, token);
@@ -403,6 +416,12 @@ export const AdminServers: React.FC = () => {
         open={addServerDialogOpen}
         onOpenChange={setAddServerDialogOpen}
         onAddServer={handleAddServer}
+      />
+
+      <ServerCleanupDialog
+        open={cleanupDialogOpen}
+        onOpenChange={setCleanupDialogOpen}
+        server={cleanupServer}
       />
     </div>
   );
