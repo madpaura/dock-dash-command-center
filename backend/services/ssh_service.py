@@ -6,6 +6,7 @@ import threading
 import uuid
 import queue
 import os
+import socket
 from typing import Dict, Any, Optional, List
 from loguru import logger
 
@@ -36,39 +37,51 @@ class SSHSession:
         Returns:
             bool: True if connection successful
         """
+        logger.debug(f"Attempting SSH connection to {self.username}@{self.host}:{self.port}")
         try:
             self.client = paramiko.SSHClient()
             self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
+            # Configure connection parameters for stability
+            connect_kwargs = {
+                'hostname': self.host,
+                'port': self.port,
+                'username': self.username,
+                'timeout': 10,
+                'banner_timeout': 30,
+                'auth_timeout': 30
+            }
+            
             if self.key_path and os.path.exists(self.key_path):
                 # Use SSH key authentication
-                self.client.connect(
-                    hostname=self.host,
-                    port=self.port,
-                    username=self.username,
-                    key_filename=self.key_path,
-                    timeout=10
-                )
+                connect_kwargs['key_filename'] = self.key_path
+                self.client.connect(**connect_kwargs)
             elif self.password:
                 # Use password authentication
-                self.client.connect(
-                    hostname=self.host,
-                    port=self.port,
-                    username=self.username,
-                    password=self.password,
-                    timeout=10
-                )
+                connect_kwargs['password'] = self.password
+                self.client.connect(**connect_kwargs)
             else:
                 raise Exception("No authentication method provided")
             
             # Create interactive shell
             self.shell = self.client.invoke_shell()
-            self.shell.settimeout(0.1)
+            # Set a reasonable timeout for shell operations
+            self.shell.settimeout(1.0)
             self.connected = True
             
             # Start output reader thread
             threading.Thread(target=self._read_output, daemon=True).start()
             
+            # Give a moment for initial output (like welcome message)
+            import time
+            time.sleep(0.5)
+            
+            # Capture initial output
+            initial_output = self.get_output()
+            if initial_output:
+                logger.debug(f"SSH initial output from {self.host}: {initial_output[:200]}...")
+            
+            logger.debug(f"SSH connection established successfully to {self.host}")
             return True
         except Exception as e:
             logger.error(f"SSH connection failed: {e}")
@@ -76,15 +89,25 @@ class SSHSession:
     
     def _read_output(self):
         """Read output from SSH shell in background thread."""
+        import time
+        logger.debug(f"Starting SSH output reader thread for {self.host}")
         while self.connected and self.shell:
             try:
                 if self.shell.recv_ready():
                     output = self.shell.recv(4096).decode('utf-8', errors='ignore')
                     self.output_queue.put(output)
+                    logger.debug(f"SSH output received from {self.host}: {len(output)} chars")
+                else:
+                    # Sleep briefly to prevent tight loop and reduce CPU usage
+                    time.sleep(0.1)
+            except socket.timeout:
+                # Timeout is expected, continue reading
+                continue
             except Exception as e:
                 if self.connected:
-                    logger.error(f"Error reading SSH output: {e}")
+                    logger.error(f"Error reading SSH output from {self.host}: {e}")
                 break
+        logger.debug(f"SSH output reader thread exiting for {self.host}")
     
     def execute_command(self, command: str) -> bool:
         """
@@ -121,12 +144,43 @@ class SSHSession:
         return ''.join(output_lines)
     
     def disconnect(self):
-        """Disconnect SSH session."""
+        """
+        Close SSH connection and cleanup resources.
+        """
+        logger.debug(f"Disconnecting SSH session to {self.host}")
         self.connected = False
         if self.shell:
             self.shell.close()
+            self.shell = None
         if self.client:
             self.client.close()
+            self.client = None
+        logger.debug(f"SSH session to {self.host} disconnected")
+    
+    def is_alive(self) -> bool:
+        """
+        Check if SSH connection is still alive.
+        
+        Returns:
+            bool: True if connection is active
+        """
+        if not self.connected or not self.client:
+            logger.debug(f"SSH session {self.session_id} not connected or no client")
+            return False
+        
+        try:
+            # Check transport status
+            transport = self.client.get_transport()
+            if transport is None:
+                logger.debug(f"SSH session {self.session_id} has no transport")
+                return False
+            
+            is_active = transport.is_active()
+            logger.debug(f"SSH session {self.session_id} transport active: {is_active}")
+            return is_active
+        except Exception as e:
+            logger.debug(f"SSH session {self.session_id} is_alive check failed: {e}")
+            return False
 
 
 class SSHService:
@@ -267,15 +321,64 @@ class SSHService:
             
             self.ssh_session_outputs[session_id] += output
             
+            # Check if session is still alive
+            is_connected = ssh_session.is_alive()
+            
             return {
                 'success': True,
                 'output': output,
-                'full_output': self.ssh_session_outputs[session_id]
+                'full_output': self.ssh_session_outputs[session_id],
+                'connected': is_connected
             }
             
         except Exception as e:
             logger.error(f"Error getting SSH output: {e}")
-            return {'success': False, 'error': 'Failed to get SSH output'}
+            return {
+                'success': False, 
+                'error': 'Failed to get SSH output',
+                'connected': False
+            }
+    
+    def get_ssh_session_status(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get SSH session status.
+        
+        Args:
+            session_id: SSH session ID
+            
+        Returns:
+            Dict[str, Any]: Session status
+        """
+        try:
+            if session_id not in self.ssh_sessions:
+                return {
+                    'success': False, 
+                    'connected': False,
+                    'error': 'SSH session not found'
+                }
+            
+            ssh_session = self.ssh_sessions[session_id]
+            is_alive = ssh_session.is_alive()
+            
+            if not is_alive:
+                # Clean up dead session
+                logger.warning(f"SSH session {session_id} is dead, cleaning up")
+                self.ssh_sessions.pop(session_id, None)
+                self.ssh_session_outputs.pop(session_id, None)
+            
+            return {
+                'success': True,
+                'connected': is_alive,
+                'session_id': session_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Error checking SSH session status: {e}")
+            return {
+                'success': False, 
+                'connected': False,
+                'error': 'Failed to check session status'
+            }
     
     def disconnect_ssh_session(self, session_id: str, admin_username: str, 
                              ip_address: Optional[str] = None) -> Dict[str, Any]:

@@ -422,6 +422,26 @@ def ssh_get_output(session_id):
         return jsonify(result), 404
 
 
+@app.route('/api/admin/servers/ssh/<session_id>/status', methods=['GET'])
+def ssh_status(session_id):
+    """SSH status endpoint."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    result = ssh_service.get_ssh_session_status(session_id)
+    
+    if result['success']:
+        return jsonify(result)
+    else:
+        return jsonify(result), 500
+
+
 @app.route('/api/admin/servers/ssh/<session_id>/disconnect', methods=['POST'])
 def ssh_disconnect(session_id):
     """SSH disconnect endpoint."""
