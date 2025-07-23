@@ -4,6 +4,7 @@ Helper utility functions.
 import secrets
 import hashlib
 import os
+import re
 from typing import List, Optional
 from loguru import logger
 
@@ -148,3 +149,45 @@ def truncate_string(text: str, max_length: int = 100, suffix: str = "...") -> st
         return text
     
     return text[:max_length - len(suffix)] + suffix
+
+
+def clean_terminal_output(text: str) -> str:
+    """
+    Clean ANSI escape sequences and control characters from terminal output.
+    
+    This function removes:
+    - ANSI color codes (e.g., [0m, [01;34m)
+    - Bracketed paste mode sequences (e.g., [?2004l, [?2004h)
+    - Other terminal control sequences
+    - Carriage returns that don't precede newlines
+    
+    Args:
+        text: Raw terminal output text
+        
+    Returns:
+        str: Cleaned text suitable for display
+    """
+    if not text:
+        return text
+    
+    # Remove ANSI escape sequences
+    # This pattern matches ESC[ followed by any number of digits, semicolons, and letters
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    text = ansi_escape.sub('', text)
+    
+    # Remove bracketed paste mode sequences
+    bracketed_paste = re.compile(r'\[\?2004[lh]')
+    text = bracketed_paste.sub('', text)
+    
+    # Remove other common control sequences
+    # Remove sequences like [K (clear to end of line), [H (cursor home), etc.
+    control_sequences = re.compile(r'\[[0-9;]*[A-Za-z]')
+    text = control_sequences.sub('', text)
+    
+    # Clean up carriage returns - keep only those followed by newlines
+    text = re.sub(r'\r(?!\n)', '', text)
+    
+    # Remove null bytes and other non-printable characters except newlines and tabs
+    text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    
+    return text

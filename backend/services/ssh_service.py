@@ -12,6 +12,7 @@ from loguru import logger
 
 from database import UserDatabase
 from models.ssh import SSHConnectionInfo, SSHSessionStatus, SSHCommandRequest, SSHCommandResponse, SSHConnectRequest
+from utils.helpers import clean_terminal_output
 
 
 class SSHSession:
@@ -94,9 +95,11 @@ class SSHSession:
         while self.connected and self.shell:
             try:
                 if self.shell.recv_ready():
-                    output = self.shell.recv(4096).decode('utf-8', errors='ignore')
-                    self.output_queue.put(output)
-                    logger.debug(f"SSH output received from {self.host}: {len(output)} chars")
+                    raw_output = self.shell.recv(4096).decode('utf-8', errors='ignore')
+                    # Clean ANSI escape sequences and control characters
+                    cleaned_output = clean_terminal_output(raw_output)
+                    self.output_queue.put(cleaned_output)
+                    logger.debug(f"SSH output received from {self.host}: {len(raw_output)} chars -> {len(cleaned_output)} chars cleaned")
                 else:
                     # Sleep briefly to prevent tight loop and reduce CPU usage
                     time.sleep(0.1)
