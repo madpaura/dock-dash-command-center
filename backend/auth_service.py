@@ -7,7 +7,7 @@ import paramiko
 import threading
 import uuid
 import queue
-from user_database import UserDatabase
+from database import UserDatabase
 from dotenv import load_dotenv
 import os
 from loguru import logger
