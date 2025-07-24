@@ -1,6 +1,4 @@
-"""
-Session-related data models and schemas.
-"""
+
 from dataclasses import dataclass
 from typing import Optional
 from datetime import datetime
@@ -8,7 +6,7 @@ from datetime import datetime
 
 @dataclass
 class SessionData:
-    """Data class for session information."""
+    
     session_id: str
     user_id: int
     username: str
@@ -20,7 +18,7 @@ class SessionData:
 
 @dataclass
 class LoginRequest:
-    """Data class for login request."""
+    
     email: str
     password: str
     ip_address: Optional[str] = None
@@ -28,7 +26,7 @@ class LoginRequest:
 
 @dataclass
 class LoginResponse:
-    """Data class for login response."""
+    
     success: bool
     message: str
     token: Optional[str] = None
@@ -39,7 +37,7 @@ class LoginResponse:
 
 @dataclass
 class RegisterRequest:
-    """Data class for user registration request."""
+    
     username: str
     email: str
     password: str

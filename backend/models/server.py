@@ -1,6 +1,4 @@
-"""
-Server and agent-related data models and schemas.
-"""
+
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -8,7 +6,7 @@ from datetime import datetime
 
 @dataclass
 class ServerInfo:
-    """Data class for server information."""
+    
     server_id: str
     ip_address: str
     port: int
@@ -19,7 +17,7 @@ class ServerInfo:
 
 @dataclass
 class ServerResources:
-    """Data class for server resource information."""
+    
     server_id: str
     cpu_usage: float
     memory_usage: float
@@ -36,7 +34,7 @@ class ServerResources:
 
 @dataclass
 class ServerStats:
-    """Data class for server statistics."""
+    
     total_servers: int
     online_servers: int
     offline_servers: int
@@ -49,7 +47,7 @@ class ServerStats:
 
 @dataclass
 class AgentInfo:
-    """Data class for agent information."""
+    
     ip_address: str
     port: int
     status: str
@@ -59,7 +57,7 @@ class AgentInfo:
 
 @dataclass
 class ServerActionRequest:
-    """Data class for server action requests."""
+    
     action: str  # start, stop, restart, maintenance, remove
     server_id: str
     user_id: Optional[int] = None
@@ -68,7 +66,7 @@ class ServerActionRequest:
 
 @dataclass
 class AddServerRequest:
-    """Data class for adding new server."""
+    
     ip_address: str
     port: int = 5000
     server_type: Optional[str] = None

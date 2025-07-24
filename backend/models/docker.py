@@ -1,6 +1,4 @@
-"""
-Docker-related data models and schemas.
-"""
+
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -8,7 +6,7 @@ from datetime import datetime
 
 @dataclass
 class DockerImage:
-    """Data class for Docker image information."""
+    
     id: str
     short_id: str
     repository: str
@@ -26,7 +24,7 @@ class DockerImage:
 
 @dataclass
 class DockerImageLayer:
-    """Data class for Docker image layer information."""
+    
     id: str
     size: int
     created: str
@@ -35,7 +33,7 @@ class DockerImageLayer:
 
 @dataclass
 class DockerImageHistory:
-    """Data class for Docker image history information."""
+    
     id: str
     created: str
     created_by: str
@@ -45,7 +43,7 @@ class DockerImageHistory:
 
 @dataclass
 class DockerImagesResponse:
-    """Data class for Docker images response."""
+    
     success: bool
     server_id: str
     images: List[DockerImage]
@@ -56,7 +54,7 @@ class DockerImagesResponse:
 
 @dataclass
 class DockerImageDetailsResponse:
-    """Data class for Docker image details response."""
+    
     success: bool
     server_id: str
     image_id: str
@@ -68,6 +66,6 @@ class DockerImageDetailsResponse:
 
 @dataclass
 class DockerImagesRequest:
-    """Data class for Docker images request."""
+    
     server_id: Optional[str] = None  # If None, query all servers
     include_details: bool = False

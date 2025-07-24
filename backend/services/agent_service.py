@@ -1,7 +1,3 @@
-"""
-Agent service for managing communication with monitoring agents.
-Refactored from agent_manager.py with improved structure and error handling.
-"""
 import socket
 import json
 from loguru import logger
@@ -15,25 +11,12 @@ from models.docker import DockerImage, DockerImagesResponse, DockerImageDetailsR
 
 
 class AgentService:
-    """Service for managing agent communication and resource queries."""
     
     def __init__(self, default_port: int = 5000, default_timeout: int = 5):
         self.default_port = default_port
         self.default_timeout = default_timeout
     
     def query_agent_resources(self, agent_ip: str, agent_port: int = None, timeout: int = None) -> Optional[Dict[str, Any]]:
-        """
-        Query a single agent for its resource information.
-        Optimized with shorter timeout for faster failure detection.
-        
-        Args:
-            agent_ip: IP address of the agent
-            agent_port: Port of the agent (defaults to default_port)
-            timeout: Timeout in seconds (defaults to default_timeout)
-            
-        Returns:
-            Optional[Dict[str, Any]]: Resource information or None if failed
-        """
         if agent_port is None:
             agent_port = self.default_port
         if timeout is None:
@@ -81,21 +64,7 @@ class AgentService:
             return resources
         return None
 
-    def query_available_agents(self, server_list: List[str], port: int = None, 
-                             max_workers: int = 10, timeout_per_agent: int = None) -> List[Dict[str, Any]]:
-        """
-        Query multiple servers for their resource information concurrently.
-        Optimized for speed with parallel processing and shorter timeouts.
-        
-        Args:
-            server_list: List of server IP addresses
-            port: Port to use for all servers
-            max_workers: Maximum number of concurrent workers
-            timeout_per_agent: Timeout per agent in seconds
-            
-        Returns:
-            List[Dict[str, Any]]: List of resource information from available agents
-        """
+    def query_available_agents(self, server_list: List[str], port: int = None, max_workers: int = 10, timeout_per_agent: int = None) -> List[Dict[str, Any]]:
         if port is None:
             port = self.default_port
         if timeout_per_agent is None:
@@ -110,13 +79,11 @@ class AgentService:
         available_agents = []
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
             future_to_server = {
                 executor.submit(self.query_single_agent_with_id, server_ip, port): server_ip 
                 for server_ip in server_list
             }
             
-            # Collect results as they complete
             for future in as_completed(future_to_server):
                 server_ip = future_to_server[future]
                 try:
@@ -133,17 +100,6 @@ class AgentService:
         return available_agents
 
     def query_agent_docker_images(self, agent_ip: str, agent_port: int = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
-        """
-        Query a single agent for its Docker images information.
-        
-        Args:
-            agent_ip: IP address of the agent
-            agent_port: Port of the agent
-            timeout: Timeout in seconds
-            
-        Returns:
-            Optional[Dict[str, Any]]: Docker images information or None if failed
-        """
         if agent_port is None:
             agent_port = self.default_port
             
@@ -168,20 +124,7 @@ class AgentService:
             logger.error(f"Error querying Docker images from agent {agent_ip}:{agent_port}: {e}")
             return None
 
-    def query_agent_docker_image_details(self, agent_ip: str, image_id: str, 
-                                       agent_port: int = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
-        """
-        Query a single agent for detailed information about a specific Docker image.
-        
-        Args:
-            agent_ip: IP address of the agent
-            image_id: ID of the Docker image
-            agent_port: Port of the agent
-            timeout: Timeout in seconds
-            
-        Returns:
-            Optional[Dict[str, Any]]: Docker image details or None if failed
-        """
+    def query_agent_docker_image_details(self, agent_ip: str, image_id: str, agent_port: int = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
         if agent_port is None:
             agent_port = self.default_port
             
@@ -206,20 +149,7 @@ class AgentService:
             logger.error(f"Error querying Docker image details from agent {agent_ip}:{agent_port}: {e}")
             return None
 
-    def query_multiple_agents_docker_images(self, server_list: List[str], port: int = None, 
-                                          max_workers: int = 10, timeout_per_agent: int = 10) -> List[Dict[str, Any]]:
-        """
-        Query multiple servers for their Docker images concurrently.
-        
-        Args:
-            server_list: List of server IP addresses
-            port: Port to use for all servers
-            max_workers: Maximum number of concurrent workers
-            timeout_per_agent: Timeout per agent in seconds
-            
-        Returns:
-            List[Dict[str, Any]]: List of Docker images information from available agents
-        """
+    def query_multiple_agents_docker_images(self, server_list: List[str], port: int = None, max_workers: int = 10, timeout_per_agent: int = 10) -> List[Dict[str, Any]]:
         if port is None:
             port = self.default_port
             
@@ -232,13 +162,11 @@ class AgentService:
         results = []
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
             future_to_server = {
                 executor.submit(self.query_agent_docker_images, server_ip, port, timeout_per_agent): server_ip 
                 for server_ip in server_list
             }
             
-            # Collect results as they complete
             for future in as_completed(future_to_server):
                 server_ip = future_to_server[future]
                 try:
@@ -261,21 +189,16 @@ agent_service = AgentService()
 
 # Backward compatibility functions
 def query_agent_resources(agent_ip: str, agent_port: int = 5000, timeout: int = 5) -> Optional[Dict[str, Any]]:
-    """Backward compatibility wrapper."""
     return agent_service.query_agent_resources(agent_ip, agent_port, timeout)
 
 def query_available_agents(server_list: List[str], port: int, max_workers: int = 10, timeout_per_agent: int = 5) -> List[Dict[str, Any]]:
-    """Backward compatibility wrapper."""
     return agent_service.query_available_agents(server_list, port, max_workers, timeout_per_agent)
 
 def query_agent_docker_images(agent_ip: str, agent_port: int = 5000, timeout: int = 10) -> Optional[Dict[str, Any]]:
-    """Backward compatibility wrapper."""
     return agent_service.query_agent_docker_images(agent_ip, agent_port, timeout)
 
 def query_agent_docker_image_details(agent_ip: str, image_id: str, agent_port: int = 5000, timeout: int = 10) -> Optional[Dict[str, Any]]:
-    """Backward compatibility wrapper."""
     return agent_service.query_agent_docker_image_details(agent_ip, image_id, agent_port, timeout)
 
 def query_multiple_agents_docker_images(server_list: List[str], port: int = 5000, max_workers: int = 10, timeout_per_agent: int = 10) -> List[Dict[str, Any]]:
-    """Backward compatibility wrapper."""
     return agent_service.query_multiple_agents_docker_images(server_list, port, max_workers, timeout_per_agent)

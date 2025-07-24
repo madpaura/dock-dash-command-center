@@ -1,6 +1,3 @@
-"""
-SSH service for managing SSH connections and command execution.
-"""
 import paramiko
 import threading
 import uuid
@@ -16,7 +13,6 @@ from utils.helpers import clean_terminal_output
 
 
 class SSHSession:
-    """SSH session management class."""
     
     def __init__(self, session_id: str, host: str, port: int, username: str, 
                  password: Optional[str] = None, key_path: Optional[str] = None):
@@ -187,7 +183,6 @@ class SSHSession:
 
 
 class SSHService:
-    """Service for managing SSH connections and operations."""
     
     def __init__(self, db: UserDatabase):
         self.db = db
@@ -196,18 +191,6 @@ class SSHService:
     
     def create_ssh_connection(self, server_id: str, ssh_config: Dict[str, Any], 
                             admin_username: str, ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Establish SSH connection to server.
-        
-        Args:
-            server_id: Server ID
-            ssh_config: SSH configuration
-            admin_username: Username of admin establishing connection
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Connection result
-        """
         try:
             logger.info(f"SSH connection requested for server {ssh_config}")
             
@@ -258,18 +241,6 @@ class SSHService:
     
     def execute_ssh_command(self, session_id: str, command: str, admin_username: str, 
                           ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Execute command via SSH.
-        
-        Args:
-            session_id: SSH session ID
-            command: Command to execute
-            admin_username: Username of admin executing command
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Execution result
-        """
         try:
             if session_id not in self.ssh_sessions:
                 return {'success': False, 'error': 'SSH session not found'}
@@ -302,15 +273,6 @@ class SSHService:
             return {'success': False, 'error': 'Failed to execute command'}
     
     def get_ssh_output(self, session_id: str) -> Dict[str, Any]:
-        """
-        Get SSH session output.
-        
-        Args:
-            session_id: SSH session ID
-            
-        Returns:
-            Dict[str, Any]: Output result
-        """
         try:
             if session_id not in self.ssh_sessions:
                 return {'success': False, 'error': 'SSH session not found'}
@@ -343,15 +305,6 @@ class SSHService:
             }
     
     def get_ssh_session_status(self, session_id: str) -> Dict[str, Any]:
-        """
-        Get SSH session status.
-        
-        Args:
-            session_id: SSH session ID
-            
-        Returns:
-            Dict[str, Any]: Session status
-        """
         try:
             if session_id not in self.ssh_sessions:
                 return {
@@ -385,17 +338,6 @@ class SSHService:
     
     def disconnect_ssh_session(self, session_id: str, admin_username: str, 
                              ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Disconnect SSH session.
-        
-        Args:
-            session_id: SSH session ID
-            admin_username: Username of admin disconnecting session
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Disconnection result
-        """
         try:
             if session_id not in self.ssh_sessions:
                 return {'success': False, 'error': 'SSH session not found'}
@@ -433,12 +375,6 @@ class SSHService:
             return {'success': False, 'error': 'Failed to disconnect SSH session'}
     
     def get_ssh_sessions(self) -> List[Dict[str, Any]]:
-        """
-        Get list of active SSH sessions.
-        
-        Returns:
-            List[Dict[str, Any]]: List of active SSH sessions
-        """
         try:
             sessions = []
             for session_id, ssh_session in self.ssh_sessions.items():

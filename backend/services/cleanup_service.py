@@ -1,6 +1,3 @@
-"""
-Cleanup service for managing server cleanup operations.
-"""
 import paramiko
 import json
 import re
@@ -12,7 +9,6 @@ from models.server import ServerInfo
 
 
 class CleanupService:
-    """Service for handling server cleanup operations."""
     
     def __init__(self, db: UserDatabase):
         self.db = db
@@ -20,20 +16,7 @@ class CleanupService:
 
     def get_cleanup_summary(self, server_ip: str, username: str, password: str, 
                           ssh_port: int = 22) -> Dict[str, Any]:
-        """
-        Get cleanup summary showing containers and disk usage.
-        
-        Args:
-            server_ip: Server IP address
-            username: SSH username
-            password: SSH password
-            ssh_port: SSH port (default: 22)
-            
-        Returns:
-            Dict[str, Any]: Cleanup summary data
-        """
         try:
-            # Use SSH commands for cleanup summary (reliable approach)
             ssh_client = paramiko.SSHClient()
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
@@ -76,7 +59,6 @@ class CleanupService:
             }
     
     def _format_ports(self, ports: dict) -> str:
-        """Format container ports for display."""
         if not ports:
             return ''
         
@@ -92,7 +74,6 @@ class CleanupService:
         return ', '.join(port_list)
     
     def _format_size(self, size_bytes: int) -> str:
-        """Format size in bytes to human readable format."""
         if size_bytes == 0:
             return '0B'
         
@@ -103,21 +84,17 @@ class CleanupService:
         return f"{size_bytes:.1f}PB"
     
     def _get_containers_info_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Get Docker containers information."""
         try:
-            # Get running containers
             stdin, stdout, stderr = client.exec_command(
                 "docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Command}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}\t{{.Names}}'"
             )
             running_output = stdout.read().decode('utf-8')
             
-            # Get stopped containers
             stdin, stdout, stderr = client.exec_command(
                 "docker ps -a --filter 'status=exited' --format 'table {{.ID}}\t{{.Image}}\t{{.Command}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}\t{{.Names}}'"
             )
             stopped_output = stdout.read().decode('utf-8')
             
-            # Get container sizes
             stdin, stdout, stderr = client.exec_command(
                 "docker system df -v --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.SharedSize}}\t{{.UniqueSize}}\t{{.Containers}}'"
             )
@@ -134,31 +111,24 @@ class CleanupService:
             return {'running': [], 'stopped': [], 'sizes_info': ''}
     
     def _get_disk_usage_info_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Get disk usage information."""
         try:
             disk_info = {}
             
-            # Get /opt disk usage
             stdin, stdout, stderr = client.exec_command("du -sh /opt 2>/dev/null || echo 'N/A'")
             opt_usage = stdout.read().decode('utf-8').strip()
             
-            # Get Docker root directory usage
             stdin, stdout, stderr = client.exec_command("docker system df")
             docker_df_output = stdout.read().decode('utf-8')
             
-            # Get detailed Docker space usage
             stdin, stdout, stderr = client.exec_command("docker system df -v")
             docker_df_verbose = stdout.read().decode('utf-8')
             
-            # Get overall disk usage
             stdin, stdout, stderr = client.exec_command("df -h /")
             root_disk_usage = stdout.read().decode('utf-8')
             
-            # Get Docker data root location
             stdin, stdout, stderr = client.exec_command("docker info --format '{{.DockerRootDir}}'")
             docker_root = stdout.read().decode('utf-8').strip()
             
-            # Get Docker data root usage
             if docker_root:
                 stdin, stdout, stderr = client.exec_command(f"du -sh {docker_root} 2>/dev/null || echo 'N/A'")
                 docker_root_usage = stdout.read().decode('utf-8').strip()
@@ -180,15 +150,12 @@ class CleanupService:
             return {}
     
     def _get_docker_images_info_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Get Docker images information."""
         try:
-            # Get all images with details
             stdin, stdout, stderr = client.exec_command(
                 "docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}\t{{.Size}}'"
             )
             images_output = stdout.read().decode('utf-8')
             
-            # Get dangling images
             stdin, stdout, stderr = client.exec_command(
                 "docker images -f 'dangling=true' --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}\t{{.Size}}'"
             )
@@ -207,23 +174,7 @@ class CleanupService:
     def execute_cleanup(self, server_ip: str, username: str, password: str,
                        cleanup_options: Dict[str, Any], admin_username: str,
                        ssh_port: int = 22, ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Execute cleanup operations based on selected options.
-        
-        Args:
-            server_ip: Server IP address
-            username: SSH username
-            password: SSH password
-            cleanup_options: Dictionary of cleanup options
-            admin_username: Admin user performing cleanup
-            ssh_port: SSH port (default: 22)
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Cleanup execution results
-        """
         try:
-            # Use SSH commands for cleanup (reliable approach)
             logger.info(f"Connecting to {server_ip} for cleanup operations")
             ssh_client = paramiko.SSHClient()
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -240,7 +191,6 @@ class CleanupService:
             results = self._execute_cleanup_ssh(ssh_client, cleanup_options)
             ssh_client.close()
             
-            # Log the cleanup action
             self.db.log_audit_event(
                 username=admin_username,
                 action_type='server_cleanup',
@@ -269,11 +219,9 @@ class CleanupService:
     
 
     def _execute_cleanup_ssh(self, client: paramiko.SSHClient, cleanup_options: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Execute cleanup operations using SSH commands."""
         results = []
         
         try:
-            # Execute selected cleanup operations
             if cleanup_options.get('remove_stopped_containers', False):
                 result = self._remove_stopped_containers_ssh(client)
                 results.append(result)
@@ -294,13 +242,11 @@ class CleanupService:
                 result = self._docker_system_prune_ssh(client)
                 results.append(result)
             
-            # Custom container removal
             if cleanup_options.get('remove_specific_containers'):
                 container_ids = cleanup_options['remove_specific_containers']
                 result = self._remove_specific_containers_ssh(client, container_ids)
                 results.append(result)
             
-            # Custom image removal
             if cleanup_options.get('remove_specific_images'):
                 image_ids = cleanup_options['remove_specific_images']
                 result = self._remove_specific_images_ssh(client, image_ids)
@@ -316,9 +262,7 @@ class CleanupService:
         
         return results
     
-    # SSH cleanup operations
     def _remove_stopped_containers_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Remove all stopped containers."""
         try:
             stdin, stdout, stderr = client.exec_command("docker container prune -f")
             output = stdout.read().decode('utf-8')
@@ -338,7 +282,6 @@ class CleanupService:
             }
     
     def _remove_dangling_images_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Remove dangling images."""
         try:
             stdin, stdout, stderr = client.exec_command("docker image prune -f")
             output = stdout.read().decode('utf-8')
@@ -358,7 +301,6 @@ class CleanupService:
             }
     
     def _remove_unused_volumes_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Remove unused volumes."""
         try:
             stdin, stdout, stderr = client.exec_command("docker volume prune -f")
             output = stdout.read().decode('utf-8')
@@ -378,7 +320,6 @@ class CleanupService:
             }
     
     def _remove_unused_networks_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Remove unused networks."""
         try:
             stdin, stdout, stderr = client.exec_command("docker network prune -f")
             output = stdout.read().decode('utf-8')
@@ -398,7 +339,6 @@ class CleanupService:
             }
     
     def _docker_system_prune_ssh(self, client: paramiko.SSHClient) -> Dict[str, Any]:
-        """Execute docker system prune."""
         try:
             stdin, stdout, stderr = client.exec_command("docker system prune -f")
             output = stdout.read().decode('utf-8')
@@ -418,7 +358,6 @@ class CleanupService:
             }
     
     def _remove_specific_containers_ssh(self, client: paramiko.SSHClient, container_ids: List[str]) -> Dict[str, Any]:
-        """Remove specific containers."""
         try:
             if not container_ids:
                 return {
@@ -428,7 +367,6 @@ class CleanupService:
                     'error': None
                 }
             
-            # Stop and remove containers
             containers_str = ' '.join(container_ids)
             stdin, stdout, stderr = client.exec_command(f"docker stop {containers_str} && docker rm {containers_str}")
             output = stdout.read().decode('utf-8')
@@ -450,7 +388,6 @@ class CleanupService:
             }
     
     def _remove_specific_images_ssh(self, client: paramiko.SSHClient, image_ids: List[str]) -> Dict[str, Any]:
-        """Remove specific images."""
         try:
             if not image_ids:
                 return {

@@ -1,6 +1,3 @@
-"""
-User service for managing user operations and admin user management.
-"""
 import json
 import hashlib
 from datetime import datetime
@@ -13,18 +10,11 @@ from utils.validators import is_valid_email, is_valid_username
 
 
 class UserService:
-    """Service for handling user management operations."""
     
     def __init__(self, db: UserDatabase):
         self.db = db
     
     def get_all_users(self) -> List[Dict[str, Any]]:
-        """
-        Get all users.
-        
-        Returns:
-            List[Dict[str, Any]]: List of all users
-        """
         try:
             users = self.db.get_all_users()
             return users if users else []
@@ -33,15 +23,6 @@ class UserService:
             return []
     
     def get_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Get user by ID.
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Optional[Dict[str, Any]]: User data or None if not found
-        """
         try:
             return self.db.get_user_by_id(user_id)
         except Exception as e:
@@ -49,21 +30,9 @@ class UserService:
             return None
     
     def delete_user(self, user_id: int, admin_username: str, ip_address: Optional[str] = None) -> bool:
-        """
-        Delete user by ID.
-        
-        Args:
-            user_id: User ID to delete
-            admin_username: Username of admin performing deletion
-            ip_address: Client IP address
-            
-        Returns:
-            bool: True if successful
-        """
         try:
             user = self.db.get_user_by_id(user_id)
             if user and self.db.delete_user_by_username(user['username']):
-                # Log successful user deletion
                 self.db.log_audit_event(
                     admin_username,
                     'delete_user',
@@ -77,12 +46,6 @@ class UserService:
             return False
     
     def get_pending_users(self) -> List[Dict[str, Any]]:
-        """
-        Get all pending users.
-        
-        Returns:
-            List[Dict[str, Any]]: List of pending users
-        """
         try:
             users = self.db.get_pending_users()
             return users if users else []
@@ -92,28 +55,13 @@ class UserService:
     
     def approve_user(self, user_id: int, server_id: str, admin_username: str, 
                     agent_port: str = "8510", ip_address: Optional[str] = None) -> bool:
-        """
-        Approve user and assign server.
-        
-        Args:
-            user_id: User ID to approve
-            server_id: Server ID to assign
-            admin_username: Username of admin performing approval
-            agent_port: Agent port for redirect URL
-            ip_address: Client IP address
-            
-        Returns:
-            bool: True if successful
-        """
         try:
-            # Get user info before approval
             user = self.db.get_user_by_id(user_id)
             
             if self.db.update_user(user_id, {
                 'is_approved': True,
                 'redirect_url': f"http://{server_id}:{agent_port}"
             }):
-                # Log successful user approval
                 if user:
                     self.db.log_audit_event(
                         admin_username,
@@ -132,24 +80,14 @@ class UserService:
             return False
     
     def get_admin_users(self) -> List[Dict[str, Any]]:
-        """
-        Get all users with detailed container and server information for admin dashboard.
-        
-        Returns:
-            List[Dict[str, Any]]: List of admin user data
-        """
         try:
-            # Get basic user data
             users = self.db.get_all_users()
             
-            # Transform real user data to match frontend expectations
             admin_users = []
             for user in users:
-                # Generate container info based on user data
                 container_name = f"container-{user['username'][:2].lower()}-{user['id']:03d}"
                 container_status = 'running' if user.get('is_approved') else 'stopped'
                 
-                # Assign resources based on role
                 if user.get('is_admin'):
                     resources = {'cpu': '8 cores', 'ram': '16GB', 'gpu': '2 cores, 24GB'}
                     role = 'Admin'
@@ -157,7 +95,6 @@ class UserService:
                     resources = {'cpu': '4 cores', 'ram': '8GB', 'gpu': '1 core, 12GB'}
                     role = 'Developer' if user.get('is_approved') else 'Pending'
                 
-                # Assign server based on user ID (simple distribution)
                 server_num = (user['id'] % 4) + 1
                 server_locations = ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-south-1']
                 
@@ -181,18 +118,12 @@ class UserService:
             return []
     
     def get_admin_stats(self) -> Dict[str, Any]:
-        """
-        Get statistics for admin dashboard.
-        
-        Returns:
-            Dict[str, Any]: Admin statistics
-        """
         try:
             users = self.db.get_all_users()
-            total_users = len(users) if users else 4  # Use placeholder count if no users
+            total_users = len(users) if users else 4  
             active_containers = sum(1 for user in (users or []) if user.get('is_approved', False))
             if not users:
-                active_containers = 3  # Placeholder active containers
+                active_containers = 3  
             
             stats = {
                 'totalUsers': total_users,
@@ -210,20 +141,7 @@ class UserService:
     
     def update_admin_user(self, user_id: int, update_data: Dict[str, Any], 
                          admin_username: str = "Admin", ip_address: Optional[str] = None) -> bool:
-        """
-        Update user information from admin panel.
-        
-        Args:
-            user_id: User ID to update
-            update_data: Data to update
-            admin_username: Username of admin performing update
-            ip_address: Client IP address
-            
-        Returns:
-            bool: True if successful
-        """
         try:
-            # Extract update fields
             update_fields = {}
             if 'name' in update_data:
                 update_fields['username'] = update_data['name']
@@ -256,18 +174,6 @@ class UserService:
     
     def create_admin_user(self, user_data: Dict[str, Any], admin_username: str = "Admin", 
                          agent_port: str = "8510", ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Create a new user from admin panel.
-        
-        Args:
-            user_data: User creation data
-            admin_username: Username of admin creating user
-            agent_port: Agent port for redirect URL
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Creation result
-        """
         try:
             # Extract user data
             name = user_data.get('name', '').strip()
@@ -351,19 +257,6 @@ class UserService:
             return {'success': False, 'error': 'Failed to create user'}
     
     def approve_admin_user(self, user_id: int, approval_data: Dict[str, Any], 
-                          admin_username: str = "Admin", ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Approve user with server and resource assignment.
-        
-        Args:
-            user_id: User ID to approve
-            approval_data: Approval configuration data
-            admin_username: Username of admin performing approval
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Approval result
-        """
         try:
             server_assignment = approval_data.get('server', 'Server 1')
             resources = approval_data.get('resources', {

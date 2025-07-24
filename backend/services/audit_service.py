@@ -1,6 +1,3 @@
-"""
-Audit service for managing audit logs and security monitoring.
-"""
 import json
 from typing import List, Dict, Any, Optional
 from loguru import logger
@@ -9,21 +6,11 @@ from database import UserDatabase
 
 
 class AuditService:
-    """Service for handling audit logging and monitoring operations."""
     
     def __init__(self, db: UserDatabase):
         self.db = db
     
     def get_audit_logs(self, limit: int = 1000) -> List[Dict[str, Any]]:
-        """
-        Get all audit logs with transformation for frontend display.
-        
-        Args:
-            limit: Maximum number of logs to retrieve
-            
-        Returns:
-            List[Dict[str, Any]]: List of transformed audit logs
-        """
         try:
             logger.info("Fetching all audit logs")
             
@@ -118,24 +105,12 @@ class AuditService:
         return source_map.get(action_type, 'system')
     
     def clear_audit_logs(self, admin_username: str, ip_address: Optional[str] = None) -> bool:
-        """
-        Clear all audit logs (admin only operation).
-        
-        Args:
-            admin_username: Username of admin clearing logs
-            ip_address: Client IP address
-            
-        Returns:
-            bool: True if successful
-        """
         try:
             logger.info(f"Admin {admin_username} clearing all audit logs")
             
-            # Clear all audit logs
             result = self.db.clear_audit_logs()
             
             if result:
-                # Log this action (this will be the only log after clearing)
                 self.db.log_audit_event(
                     admin_username,
                     'clear_logs',
@@ -153,16 +128,6 @@ class AuditService:
     
     def log_security_event(self, username: str, event_type: str, details: Dict[str, Any], 
                           ip_address: Optional[str] = None, severity: str = 'medium'):
-        """
-        Log security-related events with enhanced details.
-        
-        Args:
-            username: Username associated with the event
-            event_type: Type of security event
-            details: Event details
-            ip_address: Client IP address
-            severity: Severity level (low, medium, high, critical)
-        """
         try:
             enhanced_details = {
                 **details,
@@ -178,7 +143,6 @@ class AuditService:
                 ip_address=ip_address
             )
             
-            # Log to application logger as well for immediate attention
             if severity in ['high', 'critical']:
                 logger.warning(f"SECURITY EVENT [{severity.upper()}]: {details.get('message', event_type)} - User: {username}, IP: {ip_address}")
             
@@ -187,14 +151,6 @@ class AuditService:
     
     def log_system_event(self, event_type: str, details: Dict[str, Any], 
                         ip_address: Optional[str] = None):
-        """
-        Log system-level events.
-        
-        Args:
-            event_type: Type of system event
-            details: Event details
-            ip_address: Source IP address
-        """
         try:
             self.db.log_audit_event(
                 username='System',
@@ -207,14 +163,7 @@ class AuditService:
             logger.error(f"Error logging system event: {e}")
     
     def get_audit_statistics(self) -> Dict[str, Any]:
-        """
-        Get audit log statistics for monitoring dashboard.
-        
-        Returns:
-            Dict[str, Any]: Audit statistics
-        """
         try:
-            # Get recent logs for analysis
             recent_logs = self.db.get_audit_logs(limit=1000)
             
             if not recent_logs:
@@ -228,7 +177,6 @@ class AuditService:
                     'recent_activity': []
                 }
             
-            # Analyze logs
             error_count = 0
             warning_count = 0
             info_count = 0
@@ -251,7 +199,6 @@ class AuditService:
                 if log.get('ip_address'):
                     unique_ips.add(log['ip_address'])
             
-            # Get recent activity (last 10 logs)
             recent_activity = []
             for log in recent_logs[:10]:
                 action_details = {}
@@ -292,22 +239,9 @@ class AuditService:
     
     def search_audit_logs(self, query: str, filters: Optional[Dict[str, Any]] = None, 
                          limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        Search audit logs with filters.
-        
-        Args:
-            query: Search query
-            filters: Additional filters (user, action_type, date_range, etc.)
-            limit: Maximum number of results
-            
-        Returns:
-            List[Dict[str, Any]]: Filtered audit logs
-        """
         try:
-            # Get all logs first (in a real implementation, this would be done at DB level)
             all_logs = self.get_audit_logs(limit=1000)
             
-            # Apply search and filters
             filtered_logs = []
             for log in all_logs:
                 # Text search in message, user, and action_type

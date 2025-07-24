@@ -1,6 +1,3 @@
-"""
-Docker service for managing Docker images and containers across servers.
-"""
 import time
 import os
 from typing import List, Dict, Any, Optional
@@ -13,22 +10,12 @@ from utils.helpers import read_agents_file
 
 
 class DockerService:
-    """Service for managing Docker operations across servers."""
     
     def __init__(self, db: UserDatabase, agent_service: AgentService):
         self.db = db
         self.agent_service = agent_service
     
     def get_docker_images(self, server_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get Docker images from all servers or a specific server.
-        
-        Args:
-            server_id: Specific server ID to query, or None for all servers
-            
-        Returns:
-            Dict[str, Any]: Docker images response
-        """
         try:
             # Get list of available agents
             agents = read_agents_file()
@@ -78,18 +65,7 @@ class DockerService:
             }
     
     def get_docker_image_details(self, server_id: str, image_id: str) -> Dict[str, Any]:
-        """
-        Get detailed information about a specific Docker image from a server.
-        
-        Args:
-            server_id: Server ID
-            image_id: Docker image ID
-            
-        Returns:
-            Dict[str, Any]: Docker image details response
-        """
         try:
-            # Check if server exists
             agents = read_agents_file()
             query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
             if server_id not in agents:

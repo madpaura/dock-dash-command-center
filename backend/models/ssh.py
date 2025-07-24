@@ -1,6 +1,4 @@
-"""
-SSH session-related data models and schemas.
-"""
+
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
 import queue
@@ -8,7 +6,7 @@ import queue
 
 @dataclass
 class SSHConnectionInfo:
-    """Data class for SSH connection information."""
+    
     session_id: str
     host: str
     port: int
@@ -19,7 +17,7 @@ class SSHConnectionInfo:
 
 @dataclass
 class SSHSessionStatus:
-    """Data class for SSH session status."""
+    
     session_id: str
     connected: bool
     host: str
@@ -31,7 +29,7 @@ class SSHSessionStatus:
 
 @dataclass
 class SSHCommandRequest:
-    """Data class for SSH command execution request."""
+    
     session_id: str
     command: str
     timeout: Optional[int] = None
@@ -39,7 +37,7 @@ class SSHCommandRequest:
 
 @dataclass
 class SSHCommandResponse:
-    """Data class for SSH command execution response."""
+    
     success: bool
     output: str
     error: Optional[str] = None
@@ -48,7 +46,7 @@ class SSHCommandResponse:
 
 @dataclass
 class SSHConnectRequest:
-    """Data class for SSH connection request."""
+    
     server_id: str
     username: str
     password: Optional[str] = None

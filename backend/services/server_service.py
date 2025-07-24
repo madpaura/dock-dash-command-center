@@ -1,6 +1,3 @@
-"""
-Server service for managing server operations and monitoring.
-"""
 import time
 import os
 from typing import List, Dict, Any, Optional
@@ -14,7 +11,6 @@ from utils.validators import is_valid_ip
 
 
 class ServerService:
-    """Service for handling server management operations."""
     
     def __init__(self, db: UserDatabase, agent_service: AgentService):
         self.db = db
@@ -22,16 +18,10 @@ class ServerService:
         self.cache = {
             'data': None,
             'timestamp': 0,
-            'cache_duration': 30  # Cache for 30 seconds
+            'cache_duration': 30
         }
     
     def get_cached_server_data(self) -> Dict[str, Any]:
-        """
-        Get cached server data or fetch new data if cache is expired.
-        
-        Returns:
-            Dict[str, Any]: Server data with servers and stats
-        """
         current_time = time.time()
         
         # Check if cache is valid
@@ -120,12 +110,6 @@ class ServerService:
         return cached_data
     
     def get_server_resources(self) -> List[Dict[str, Any]]:
-        """
-        Get server resources from all agents.
-        
-        Returns:
-            List[Dict[str, Any]]: List of server resources
-        """
         try:
             agents_list = read_agents_file()
             query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
@@ -136,12 +120,6 @@ class ServerService:
             return []
     
     def get_admin_servers(self) -> List[Dict[str, Any]]:
-        """
-        Get all servers with detailed information for admin dashboard.
-        
-        Returns:
-            List[Dict[str, Any]]: List of server information
-        """
         try:
             # Use cached data for better performance
             cached_data = self.get_cached_server_data()
@@ -151,12 +129,6 @@ class ServerService:
             return []
     
     def get_server_stats(self) -> Dict[str, Any]:
-        """
-        Get server statistics for admin dashboard.
-        
-        Returns:
-            Dict[str, Any]: Server statistics
-        """
         try:
             # Use cached data for better performance
             cached_data = self.get_cached_server_data()
@@ -165,27 +137,14 @@ class ServerService:
             logger.error(f"Error fetching server stats: {e}")
             return {}
     
-    def perform_server_action(self, server_id: str, action: str, admin_username: str, 
-                            ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Perform actions on servers (start, stop, restart, etc.).
-        
-        Args:
-            server_id: Server ID
-            action: Action to perform
-            admin_username: Username of admin performing action
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Action result
-        """
+    def perform_server_action(self, server_id: str, action: str, username: str) -> Dict[str, Any]:
         try:
             # Extract IP from server_id
             server_ip = server_id.replace('server-', '').replace('-', '.')
             
             # Log the action
             self.db.log_audit_event(
-                username=admin_username,
+                username=username,
                 action_type='server_action',
                 action_details={
                     'message': f'Performed {action} action on server {server_ip}',
@@ -193,7 +152,7 @@ class ServerService:
                     'server_ip': server_ip,
                     'action': action
                 },
-                ip_address=ip_address
+                ip_address=None
             )
             
             return {
@@ -205,22 +164,14 @@ class ServerService:
             logger.error(f"Error performing server action: {e}")
             return {'success': False, 'error': 'Failed to perform server action'}
     
-    def add_server(self, server_data: Dict[str, Any], admin_username: str, 
-                  ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Add a new server to the agents list.
-        
-        Args:
-            server_data: Server information
-            admin_username: Username of admin adding server
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Addition result
-        """
+    def add_server(self, server_data: AddServerRequest) -> Dict[str, Any]:    
         try:
             # Validate required fields
-            name = server_data.get('name', '').strip()
+            name = server_data.name.strip()
+            ip = server_data.ip.strip()
+            port = server_data.port.strip()
+            description = server_data.description.strip()
+            tags = server_data.tags
             ip = server_data.get('ip', '').strip()
             port = server_data.get('port', '8511').strip()
             description = server_data.get('description', '').strip()

@@ -1,6 +1,3 @@
-"""
-Authentication service for handling user authentication and session management.
-"""
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from flask import request
@@ -13,18 +10,11 @@ from utils.validators import is_valid_email, is_valid_password, is_valid_usernam
 
 
 class AuthService:
-    """Service for handling authentication operations."""
     
     def __init__(self, db: UserDatabase):
         self.db = db
     
     def get_admin_username_from_token(self) -> str:
-        """
-        Get admin username from authorization token, fallback to 'admin'.
-        
-        Returns:
-            str: Username from token or 'admin' as fallback
-        """
         admin_username = 'admin'  # Default fallback
         try:
             auth_header = request.headers.get('Authorization')
@@ -37,18 +27,7 @@ class AuthService:
             pass  # Use default fallback
         return admin_username
     
-    def login(self, email: str, password: str, ip_address: Optional[str] = None) -> LoginResponse:
-        """
-        Authenticate user and create session.
-        
-        Args:
-            email: User email
-            password: User password
-            ip_address: Client IP address
-            
-        Returns:
-            LoginResponse: Login result with token if successful
-        """
+    def login(self, email: str, password: str, ip_address: str = None) -> Dict[str, Any]:
         try:
             user = self.db.verify_login(email, password)
 
@@ -57,7 +36,6 @@ class AuthService:
                 expires_at = datetime.now() + timedelta(hours=24)
                 
                 if self.db.create_session(user["id"], session_token, expires_at):
-                    # Log successful login
                     self.db.log_audit_event(
                         user["username"],
                         'login',
@@ -74,7 +52,6 @@ class AuthService:
                         role='admin' if user["is_admin"] else 'user'
                     )
             
-            # Log failed login attempt
             self.db.log_audit_event(
                 email if email else 'Unknown',
                 'login_failed',
@@ -94,27 +71,14 @@ class AuthService:
                 message="Login failed due to server error"
             )
     
-    def logout(self, token: str, ip_address: Optional[str] = None) -> bool:
-        """
-        Logout user and invalidate session.
-        
-        Args:
-            token: Session token
-            ip_address: Client IP address
-            
-        Returns:
-            bool: True if logout successful
-        """
+    def logout(self, token: str, ip_address: str = None) -> Dict[str, Any]:
         try:
-            # Get username before invalidating session
             session = self.db.verify_session(token)
             username = session.get('username', 'Unknown') if session else 'Unknown'
             
-            # Remove session
             success = self.db.remove_session(token)
             
             if success:
-                # Log successful logout
                 self.db.log_audit_event(
                     username,
                     'logout',
@@ -128,21 +92,8 @@ class AuthService:
             logger.error(f"Error during logout: {e}")
             return False
     
-    def register(self, username: str, email: str, password: str, ip_address: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Register new user.
-        
-        Args:
-            username: Username
-            email: Email address
-            password: Password
-            ip_address: Client IP address
-            
-        Returns:
-            Dict[str, Any]: Registration result
-        """
+    def register(self, email: str, username: str, password: str, ip_address: str = None) -> Dict[str, Any]:
         try:
-            # Validate input
             if not is_valid_username(username):
                 return {'success': False, 'error': 'Invalid username format'}
             
@@ -152,16 +103,13 @@ class AuthService:
             if not is_valid_password(password):
                 return {'success': False, 'error': 'Password must be at least 6 characters long'}
             
-            # Check if user already exists
             if self.db.get_user_by_email(email):
                 return {'success': False, 'error': 'User with this email already exists'}
             
-            # Create user
             hashed_password = hash_password(password)
             user_id = self.db.create_user(username, email, hashed_password)
             
             if user_id:
-                # Log successful registration
                 self.db.log_audit_event(
                     username,
                     'register',
@@ -179,7 +127,6 @@ class AuthService:
                 
         except Exception as e:
             logger.error(f"Error during registration: {e}")
-            # Log failed registration
             self.db.log_audit_event(
                 username if username else 'Unknown',
                 'register_failed',
@@ -189,15 +136,6 @@ class AuthService:
             return {'success': False, 'error': 'Registration failed due to server error'}
     
     def validate_session(self, token: str) -> Optional[Dict[str, Any]]:
-        """
-        Validate session token.
-        
-        Args:
-            token: Session token
-            
-        Returns:
-            Optional[Dict[str, Any]]: Session data if valid, None otherwise
-        """
         try:
             return self.db.verify_session(token)
         except Exception as e:

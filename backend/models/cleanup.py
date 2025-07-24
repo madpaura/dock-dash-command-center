@@ -1,13 +1,11 @@
-"""
-Data models for cleanup operations.
-"""
+
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 
 
 @dataclass
 class CleanupSummaryRequest:
-    """Request model for cleanup summary."""
+    
     server_ip: str
     username: str
     password: str
@@ -16,7 +14,7 @@ class CleanupSummaryRequest:
 
 @dataclass
 class ContainerInfo:
-    """Container information model."""
+    
     id: str
     image: str
     command: str
@@ -28,7 +26,7 @@ class ContainerInfo:
 
 @dataclass
 class ImageInfo:
-    """Docker image information model."""
+    
     repository: str
     tag: str
     id: str
@@ -38,7 +36,7 @@ class ImageInfo:
 
 @dataclass
 class DiskUsageInfo:
-    """Disk usage information model."""
+    
     opt_usage: str
     docker_system_df: str
     docker_system_df_verbose: str
@@ -62,7 +60,7 @@ class CleanupSummary:
 
 @dataclass
 class CleanupOptions:
-    """Cleanup options model."""
+    
     remove_stopped_containers: bool = False
     remove_dangling_images: bool = False
     remove_unused_volumes: bool = False
@@ -74,7 +72,7 @@ class CleanupOptions:
 
 @dataclass
 class CleanupExecutionRequest:
-    """Request model for cleanup execution."""
+    
     server_ip: str
     username: str
     password: str
@@ -84,7 +82,7 @@ class CleanupExecutionRequest:
 
 @dataclass
 class CleanupResult:
-    """Cleanup operation result model."""
+    
     operation: str
     success: bool
     output: str
@@ -95,7 +93,7 @@ class CleanupResult:
 
 @dataclass
 class CleanupExecutionResponse:
-    """Response model for cleanup execution."""
+    
     success: bool
     server_ip: str
     results: List[CleanupResult]
