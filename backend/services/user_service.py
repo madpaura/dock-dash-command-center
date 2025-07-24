@@ -256,7 +256,7 @@ class UserService:
             logger.error(f"Error creating user: {e}")
             return {'success': False, 'error': 'Failed to create user'}
     
-    def approve_admin_user(self, user_id: int, approval_data: Dict[str, Any], 
+    def approve_admin_user(self, user_id: int, approval_data: Dict[str, Any]): 
         try:
             server_assignment = approval_data.get('server', 'Server 1')
             resources = approval_data.get('resources', {

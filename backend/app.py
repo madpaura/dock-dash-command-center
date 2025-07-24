@@ -260,14 +260,9 @@ def get_server_resources():
 @app.route('/api/admin/servers', methods=['GET'])
 def get_admin_servers():
     """Get admin servers endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     try:
         servers_data = server_service.get_admin_servers()
@@ -280,14 +275,9 @@ def get_admin_servers():
 @app.route('/api/admin/servers/stats', methods=['GET'])
 def get_server_stats():
     """Get server stats endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     try:
         stats = server_service.get_server_stats()
@@ -300,14 +290,9 @@ def get_server_stats():
 @app.route('/api/admin/servers/<server_id>/action', methods=['POST'])
 def server_action(server_id):
     """Server action endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     data = request.get_json()
     action = data.get('action')
@@ -329,14 +314,9 @@ def server_action(server_id):
 @app.route('/api/admin/servers', methods=['POST'])
 def add_server():
     """Add server endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     data = request.get_json()
     if not data:
@@ -357,14 +337,9 @@ def add_server():
 @app.route('/api/admin/servers/<server_id>/ssh/connect', methods=['POST'])
 def ssh_connect(server_id):
     """SSH connect endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     data = request.get_json()
     ssh_config = data.get('ssh_config', {})
@@ -382,14 +357,9 @@ def ssh_connect(server_id):
 @app.route('/api/admin/servers/ssh/<session_id>/execute', methods=['POST'])
 def ssh_execute(session_id):
     """SSH execute endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     data = request.get_json()
     command = data.get('command', '')
@@ -407,14 +377,9 @@ def ssh_execute(session_id):
 @app.route('/api/admin/servers/ssh/<session_id>/output', methods=['GET'])
 def ssh_get_output(session_id):
     """SSH get output endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     result = ssh_service.get_ssh_output(session_id)
     
@@ -427,14 +392,9 @@ def ssh_get_output(session_id):
 @app.route('/api/admin/servers/ssh/<session_id>/status', methods=['GET'])
 def ssh_status(session_id):
     """SSH status endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     result = ssh_service.get_ssh_session_status(session_id)
     
@@ -447,14 +407,9 @@ def ssh_status(session_id):
 @app.route('/api/admin/servers/ssh/<session_id>/disconnect', methods=['POST'])
 def ssh_disconnect(session_id):
     """SSH disconnect endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
     
     admin_username = auth_service.get_admin_username_from_token()
     ip_address = get_client_ip(request)
@@ -471,14 +426,9 @@ def ssh_disconnect(session_id):
 @app.route('/api/admin/docker-images', methods=['GET'])
 def get_docker_images():
     """Get Docker images endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'No authorization token provided'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'error': 'Invalid session token'}), 401
+    session, error_response, status_code = require_session_auth_docker()
+    if error_response:
+        return error_response, status_code
     
     server_id = request.args.get('server_id')
     result = docker_service.get_docker_images(server_id)
@@ -489,14 +439,9 @@ def get_docker_images():
 @app.route('/api/admin/docker-images/<server_id>/<image_id>/details', methods=['GET'])
 def get_docker_image_details(server_id, image_id):
     """Get Docker image details endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'No authorization token provided'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'error': 'Invalid session token'}), 401
+    session, error_response, status_code = require_session_auth_docker()
+    if error_response:
+        return error_response, status_code
     
     result = docker_service.get_docker_image_details(server_id, image_id)
     
@@ -509,14 +454,9 @@ def get_docker_image_details(server_id, image_id):
 @app.route('/api/admin/servers/list', methods=['GET'])
 def get_servers_list():
     """Get servers list endpoint."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'No authorization token provided'}), 401
-    
-    token = auth_header.split(' ')[1]
-    session = db.verify_session(token)
-    if not session:
-        return jsonify({'error': 'Invalid session token'}), 401
+    session, error_response, status_code = require_session_auth_docker()
+    if error_response:
+        return error_response, status_code
     
     try:
         servers_list = server_service.get_servers_list()
@@ -542,15 +482,9 @@ def get_audit_logs():
 def clear_audit_logs():
     """Clear audit logs endpoint."""
     try:
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'success': False, 'error': 'No authorization token provided'}), 401
-        
-        token = auth_header.split(' ')[1]
-        user_info = db.validate_session(token)
-        
-        if not user_info or user_info.get('role') != 'admin':
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        user_info, error_response, status_code = require_admin_auth_with_db()
+        if error_response:
+            return error_response, status_code
         
         admin_username = user_info.get('username', 'admin')
         ip_address = get_client_ip(request)
@@ -567,19 +501,70 @@ def clear_audit_logs():
         return jsonify({'success': False, 'error': 'Failed to clear logs'}), 500
 
 
+def require_admin_auth():
+    """Require admin authentication for protected endpoints."""
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    session = auth_service.validate_session(token)
+    if not session:
+        return None, jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    if not session.get('is_admin'):
+        return None, jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    return session, None, None
+
+
+def require_admin_auth_with_db():
+    """Require admin authentication using database validation for audit endpoints."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, jsonify({'success': False, 'error': 'No authorization token provided'}), 401
+    
+    token = auth_header.split(' ')[1]
+    user_info = db.validate_session(token)
+    
+    if not user_info or user_info.get('role') != 'admin':
+        return None, jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    return user_info, None, None
+
+
+def require_session_auth():
+    """Require basic session authentication for protected endpoints."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, jsonify({'success': False, 'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return None, jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    return session, None, None
+
+
+def require_session_auth_docker():
+    """Require session authentication for Docker endpoints with specific error format."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, jsonify({'error': 'No authorization token provided'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = db.verify_session(token)
+    if not session:
+        return None, jsonify({'error': 'Invalid session token'}), 401
+    
+    return session, None, None
+
+
 # Cleanup management endpoints
 @app.route('/api/admin/servers/<server_id>/cleanup/summary', methods=['POST'])
 def get_cleanup_summary(server_id):
     """Get cleanup summary endpoint."""
     try:
-        # Check authentication
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        session = auth_service.validate_session(token)
-        if not session:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-        
-        if not session.get('is_admin'):
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        session, error_response, status_code = require_admin_auth()
+        if error_response:
+            return error_response, status_code
         
         data = request.get_json()
         username = data.get('username')
@@ -614,14 +599,9 @@ def get_cleanup_summary(server_id):
 def execute_cleanup(server_id):
     """Execute cleanup endpoint."""
     try:
-        # Check authentication
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        session = auth_service.validate_session(token)
-        if not session:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-        
-        if not session.get('is_admin'):
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        session, error_response, status_code = require_admin_auth()
+        if error_response:
+            return error_response, status_code
         
         data = request.get_json()
         username = data.get('username')
