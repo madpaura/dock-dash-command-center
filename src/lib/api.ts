@@ -613,3 +613,114 @@ export interface CleanupResult {
   containers?: string[];
   images?: string[];
 }
+
+/**
+ * Dashboard-specific interfaces
+ */
+export interface DashboardStats {
+  // User stats
+  totalUsers: number;
+  activeUsers: number;
+  pendingUsers: number;
+  
+  // Server stats
+  totalServers: number;
+  onlineServers: number;
+  offlineServers: number;
+  
+  // Container stats
+  totalContainers: number;
+  runningContainers: number;
+  
+  // Resource stats
+  avgCpuUsage: number;
+  avgMemoryUsage: number;
+  totalMemoryGB: number;
+  usedMemoryGB: number;
+}
+
+export interface DashboardContainer {
+  id: string;
+  name: string;
+  image: string;
+  status: 'running' | 'stopped' | 'paused';
+  server: string;
+  cpuUsage: number;
+  memoryUsage: number;
+  created: string;
+  ports: string[];
+}
+
+/**
+ * Dashboard API calls
+ */
+export const dashboardApi = {
+  async getDashboardStats(token: string): Promise<ApiResponse<DashboardStats>> {
+    // Fetch data from multiple endpoints and combine
+    const [adminStatsRes, serverStatsRes, serversRes, pendingUsersRes] = await Promise.all([
+      adminApi.getAdminStats(token),
+      serverApi.getServerStats(token),
+      serverApi.getServers(token),
+      userApi.getPendingUsers(token)
+    ]);
+
+    if (!adminStatsRes.success || !serverStatsRes.success || !serversRes.success) {
+      return {
+        success: false,
+        error: 'Failed to fetch dashboard data'
+      };
+    }
+
+    const adminStats = adminStatsRes.data?.stats;
+    const serverStats = serverStatsRes.data?.stats;
+    const servers = serversRes.data?.servers || [];
+    const pendingUsers = pendingUsersRes.data?.users || [];
+
+    // Calculate aggregated stats
+    const totalContainers = servers.reduce((sum, server) => sum + (server.containers || 0), 0);
+    const onlineServers = servers.filter(s => s.status === 'online');
+    const avgCpuUsage = onlineServers.length > 0 
+      ? onlineServers.reduce((sum, server) => sum + server.cpu, 0) / onlineServers.length 
+      : 0;
+    const avgMemoryUsage = onlineServers.length > 0 
+      ? onlineServers.reduce((sum, server) => sum + server.memory, 0) / onlineServers.length 
+      : 0;
+    
+    // Calculate total and used memory from server data
+    const totalMemoryBytes = onlineServers.reduce((sum, server) => sum + (server.total_memory || 0), 0);
+    const totalMemoryGB = totalMemoryBytes / (1024 * 1024 * 1024);
+    const usedMemoryGB = totalMemoryGB * (avgMemoryUsage / 100);
+
+    const dashboardStats: DashboardStats = {
+      totalUsers: adminStats?.totalUsers || 0,
+      activeUsers: adminStats?.activeContainers || 0,
+      pendingUsers: pendingUsers.length,
+      
+      totalServers: serverStats?.totalServers || 0,
+      onlineServers: serverStats?.onlineServers || 0,
+      offlineServers: serverStats?.offlineServers || 0,
+      
+      totalContainers: totalContainers,
+      runningContainers: totalContainers, // Assuming running containers from server data
+      
+      avgCpuUsage: Math.round(avgCpuUsage * 10) / 10,
+      avgMemoryUsage: Math.round(avgMemoryUsage * 10) / 10,
+      totalMemoryGB: Math.round(totalMemoryGB * 100) / 100,
+      usedMemoryGB: Math.round(usedMemoryGB * 100) / 100
+    };
+
+    return {
+      success: true,
+      data: dashboardStats
+    };
+  },
+
+  async getRecentContainers(token: string): Promise<ApiResponse<DashboardContainer[]>> {
+    // This would require a new backend endpoint for recent containers
+    // For now, return empty array as mentioned to implement later
+    return {
+      success: true,
+      data: []
+    };
+  }
+};
