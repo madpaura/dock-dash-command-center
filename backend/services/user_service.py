@@ -85,6 +85,9 @@ class UserService:
             
             admin_users = []
             for user in users:
+                # Skip system user
+                if user.get('username') == 'System' or user.get('status') == 'system':
+                    continue
                 container_name = f"container-{user['username'][:2].lower()}-{user['id']:03d}"
                 container_status = 'running' if user.get('is_approved') else 'stopped'
                 
@@ -120,8 +123,10 @@ class UserService:
     def get_admin_stats(self) -> Dict[str, Any]:
         try:
             users = self.db.get_all_users()
-            total_users = len(users) if users else 4  
-            active_containers = sum(1 for user in (users or []) if user.get('is_approved', False))
+            # Filter out system user
+            real_users = [user for user in (users or []) if user.get('username') != 'System' and user.get('status') != 'system']
+            total_users = len(real_users) if real_users else 4  
+            active_containers = sum(1 for user in real_users if user.get('is_approved', False))
             if not users:
                 active_containers = 3  
             

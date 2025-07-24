@@ -150,7 +150,7 @@ class UserRepository:
         query = """
         SELECT id, username, email, created_at 
         FROM users 
-        WHERE is_approved = FALSE AND is_admin = FALSE
+        WHERE is_approved = FALSE AND is_admin = FALSE AND username != 'System' AND status != 'system'
         """
         
         conn = self.db_manager.get_connection()
