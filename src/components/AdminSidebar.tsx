@@ -9,9 +9,9 @@ import {
   Network, 
   HardDrive,
   BarChart3,
-  Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Info
 } from 'lucide-react';
 import { useSidebar } from '../hooks/useSidebar';
 
@@ -21,7 +21,6 @@ const navItems = [
   { path: '/admin/images', label: 'Images', icon: Image },
   { path: '/admin/users', label: 'Users', icon: Users },
   { path: '/admin/logs', label: 'Logs', icon: FileText },
-  { path: '/admin/settings', label: 'Settings', icon: Settings },
   // { path: '/admin/monitoring', label: 'Monitoring', icon: Activity },
   // { path: '/admin/containers', label: 'Containers', icon: Container },
   // { path: '/admin/networks', label: 'Networks', icon: Network },
@@ -31,7 +30,7 @@ const navItems = [
 export const AdminSidebar: React.FC = () => {
   const { collapsed, toggleCollapsed } = useSidebar();
   return (
-    <aside className={`fixed left-0 top-16 ${collapsed ? 'w-16' : 'w-64'} h-[calc(100vh-4rem)] bg-sidebar backdrop-blur-sm border-r border-sidebar-border overflow-y-auto transition-all duration-300`}>
+    <aside className={`fixed left-0 top-16 ${collapsed ? 'w-16' : 'w-64'} h-[calc(100vh-4rem)] bg-sidebar backdrop-blur-sm border-r border-sidebar-border overflow-y-auto transition-all duration-300 flex flex-col`}>
       <div className="flex justify-end p-2">
         <button 
           onClick={toggleCollapsed}
@@ -41,7 +40,7 @@ export const AdminSidebar: React.FC = () => {
         </button>
       </div>
 
-      <nav className="p-4 space-y-2">
+      <nav className="p-4 space-y-2 flex-1">
         {!collapsed && (
           <div className="mb-6">
             <h3 className="text-xs font-semibold text-sidebar-foreground uppercase tracking-wider mb-3">
@@ -69,6 +68,37 @@ export const AdminSidebar: React.FC = () => {
           </NavLink>
         ))}
       </nav>
+
+      {/* About Banner */}
+      <div className="p-4 border-t border-sidebar-border">
+        {collapsed ? (
+          <div className="flex justify-center">
+            <div 
+              className="p-2 rounded-lg bg-sidebar-accent/30 text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors cursor-pointer"
+              title="About Docker Dashboard"
+            >
+              <Info className="w-6 h-6" />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-sidebar-accent/30 rounded-lg p-3 border border-sidebar-primary/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Info className="w-4 h-4 text-sidebar-primary" />
+              <span className="text-sm font-medium text-sidebar-foreground">About</span>
+            </div>
+            <div className="text-xs text-sidebar-foreground/70 leading-relaxed">
+              <p className="mb-1">QVP Dashboard v1.0</p>
+              <p className="mb-2">Built with React & Flask</p>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold hover:animate-spin hover:scale-110 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl hover:shadow-purple-500/25">
+                  V
+                </div>
+                <span className="hover:text-sidebar-primary transition-colors duration-200">by Vishwa</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </aside>
   );
 };
