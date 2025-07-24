@@ -169,12 +169,17 @@ def get_pending_users():
     return jsonify({'success': False, 'error': 'No pending users'}), 200
 
 
-@app.route('/api/users/<int:user_id>/approve', methods=['POST'])
+@app.route('/api/admin/users/<int:user_id>/approve', methods=['POST'])
 def approve_user(user_id):
     """Approve user endpoint."""
+    # Check admin authentication
+    session, error_response, status_code = require_admin_auth()
+    if error_response:
+        return error_response, status_code
+    
     data = request.get_json()
-    server_id = data.get('server_id')
-    admin_username = auth_service.get_admin_username_from_token()
+    server_id = data.get('server')
+    admin_username = session.get('username')
     ip_address = get_client_ip(request)
     agent_port = os.getenv('AGENT_PORT', '8510')
     
