@@ -162,25 +162,6 @@ export const UserContainers: React.FC = () => {
           ))}
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="flex items-center gap-3 p-4 text-left hover:bg-muted rounded-lg transition-colors">
-            <Download className="w-5 h-5 text-muted-foreground" />
-            <span className="text-foreground">Export Logs</span>
-          </button>
-          <button className="flex items-center gap-3 p-4 text-left hover:bg-muted rounded-lg transition-colors">
-            <Settings className="w-5 h-5 text-muted-foreground" />
-            <span className="text-foreground">Container Settings</span>
-          </button>
-          <button className="flex items-center gap-3 p-4 text-left hover:bg-muted rounded-lg transition-colors">
-            <HelpCircle className="w-5 h-5 text-muted-foreground" />
-            <span className="text-foreground">Support</span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

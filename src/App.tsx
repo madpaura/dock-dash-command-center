@@ -11,7 +11,6 @@ import { AdminServers } from './pages/AdminServers';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminLogs } from './pages/AdminLogs';
 import { AdminImages } from './pages/AdminImages';
-import { UserDashboard } from './pages/UserDashboard';
 import { UserContainers } from './pages/UserContainers';
 import { UserFileBrowser } from './pages/UserFileBrowser';
 
@@ -83,15 +82,8 @@ const AppRoutes: React.FC = () => {
       {/* User Routes */}
       <Route path="/user" element={
         <ProtectedRoute requiredRole="user">
-          <UserDashboard />
-        </ProtectedRoute>
-      } />
-      
-      <Route path="/user/containers" element={
-        <ProtectedRoute requiredRole="user">
-          <UserContainers />
-        </ProtectedRoute>
-      } />
+        <UserContainers />
+      </ProtectedRoute>      } /> 
       
       <Route path="/user/files" element={
         <ProtectedRoute requiredRole="user">

@@ -207,7 +207,6 @@ def get_docker_images():
         
         # Get all images
         images = client.images.list()
-        logger.info(images)
         image_data = []
         
         for image in images:
@@ -344,7 +343,6 @@ def init_stats_routes(app):
     @app.route('/get_resources', methods=['GET'])
     def get_resources():
         resources = get_agent_resources()
-        print(resources)
         return jsonify(resources)
     
     @app.route('/get_docker_images', methods=['GET'])
