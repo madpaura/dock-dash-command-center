@@ -4,6 +4,16 @@ import { StatCard } from '../components/StatCard';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 import { serverApi, ServerInfo, ServerStats } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { ServerSettingsDialog } from '../components/ServerSettingsDialog';
@@ -29,6 +39,8 @@ export const AdminServers: React.FC = () => {
   const [addServerDialogOpen, setAddServerDialogOpen] = useState(false);
   const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false);
   const [cleanupServer, setCleanupServer] = useState<ServerInfo | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [serverToDelete, setServerToDelete] = useState<ServerInfo | null>(null);
 
   const fetchServerData = async () => {
     if (!token) return;
@@ -78,6 +90,16 @@ export const AdminServers: React.FC = () => {
       return;
     }
     
+    // Handle delete action with confirmation
+    if (action === 'delete') {
+      const server = servers.find(s => s.id === serverId);
+      if (server) {
+        setServerToDelete(server);
+        setDeleteConfirmOpen(true);
+      }
+      return;
+    }
+    
     try {
       const response = await serverApi.performServerAction(serverId, action, token);
       if (response.success) {
@@ -88,6 +110,25 @@ export const AdminServers: React.FC = () => {
     } catch (err) {
       setError('Failed to perform server action');
       console.error('Error performing server action:', err);
+    }
+  };
+
+  const handleConfirmedDelete = async () => {
+    if (!token || !serverToDelete) return;
+    
+    try {
+      const response = await serverApi.performServerAction(serverToDelete.id, 'delete', token);
+      if (response.success) {
+        setDeleteConfirmOpen(false);
+        setServerToDelete(null);
+        await fetchServerData();
+        setError(null);
+      } else {
+        setError(response.error || 'Failed to delete server');
+      }
+    } catch (err) {
+      setError('Failed to delete server');
+      console.error('Error deleting server:', err);
     }
   };
 
@@ -423,6 +464,32 @@ export const AdminServers: React.FC = () => {
         onOpenChange={setCleanupDialogOpen}
         server={cleanupServer}
       />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Server</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the server <strong>{serverToDelete?.ip}</strong>?
+              This action cannot be undone and will remove the server from your infrastructure.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteConfirmOpen(false);
+              setServerToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmedDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Server
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

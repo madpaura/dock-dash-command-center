@@ -137,10 +137,14 @@ class ServerService:
             logger.error(f"Error fetching server stats: {e}")
             return {}
     
-    def perform_server_action(self, server_id: str, action: str, username: str) -> Dict[str, Any]:
+    def perform_server_action(self, server_id: str, action: str, username: str, ip_address: str = None) -> Dict[str, Any]:
         try:
             # Extract IP from server_id
             server_ip = server_id.replace('server-', '').replace('-', '.')
+            
+            # Handle delete action
+            if action == 'delete':
+                return self._delete_server(server_id, server_ip, username, ip_address)
             
             # Log the action
             self.db.log_audit_event(
@@ -152,7 +156,7 @@ class ServerService:
                     'server_ip': server_ip,
                     'action': action
                 },
-                ip_address=None
+                ip_address=ip_address
             )
             
             return {
@@ -163,6 +167,51 @@ class ServerService:
         except Exception as e:
             logger.error(f"Error performing server action: {e}")
             return {'success': False, 'error': 'Failed to perform server action'}
+    
+    def _delete_server(self, server_id: str, server_ip: str, username: str, ip_address: str = None) -> Dict[str, Any]:
+        """Delete a server from the system."""
+        try:
+            # Read existing agents (list of IP addresses as strings)
+            agents = read_agents_file()
+            
+            # Check if the server exists
+            if server_ip not in agents:
+                return {'success': False, 'error': f'Server {server_ip} not found'}
+            
+            # Remove the server from the list
+            agents = [agent for agent in agents if agent != server_ip]
+            
+            # Write the updated agents file
+            if not write_agents_file(agents):
+                return {'success': False, 'error': 'Failed to update agents file'}
+            
+            # Clear cache to force refresh
+            self.cache['data'] = None
+            self.cache['timestamp'] = 0
+            
+            # Log the deletion
+            self.db.log_audit_event(
+                username=username,
+                action_type='server_delete',
+                action_details={
+                    'message': f'Deleted server {server_ip}',
+                    'server_id': server_id,
+                    'server_ip': server_ip,
+                    'action': 'delete'
+                },
+                ip_address=ip_address
+            )
+            
+            logger.info(f"Server {server_ip} deleted successfully by {username}")
+            
+            return {
+                'success': True,
+                'message': f'Server {server_ip} deleted successfully'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error deleting server {server_ip}: {e}")
+            return {'success': False, 'error': f'Failed to delete server: {str(e)}'}
     
     def add_server(self, server_data: AddServerRequest) -> Dict[str, Any]:    
         try:
