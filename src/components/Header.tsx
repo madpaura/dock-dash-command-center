@@ -15,7 +15,7 @@ export const Header: React.FC = () => {
             <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">D</span>
             </div>
-            <h1 className="text-xl font-bold text-foreground">Docker Manager</h1>
+            <h1 className="text-xl font-bold text-foreground">QVP Dashboard</h1>
           </div>
           <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-muted rounded-full">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>

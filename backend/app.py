@@ -104,7 +104,7 @@ def register():
     password = data.get('password')
     ip_address = get_client_ip(request)
     
-    result = auth_service.register(username, email, password, ip_address)
+    result = auth_service.register(username, password, email, ip_address)
     
     if result['success']:
         return jsonify(result)

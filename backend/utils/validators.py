@@ -36,7 +36,7 @@ def is_valid_username(username: str) -> bool:
 
 def is_valid_password(password: str) -> bool:
     
-    if not password or len(password) < 6:
+    if not password or len(password) < 3:
         return False
     
     return True

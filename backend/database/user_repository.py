@@ -53,6 +53,18 @@ class UserRepository:
             cursor.close()
             conn.close()
 
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        """Get user by email."""
+        query = "SELECT * FROM users WHERE email = %s"
+        conn = self.db_manager.get_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(query, (email,))
+            return cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
     def get_user_by_id(self, user_id: int) -> Optional[Dict]:
         """Get user by ID."""
         query = "SELECT * FROM users WHERE id = %s"

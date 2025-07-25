@@ -92,7 +92,7 @@ class AuthService:
             logger.error(f"Error during logout: {e}")
             return False
     
-    def register(self, email: str, username: str, password: str, ip_address: str = None) -> Dict[str, Any]:
+    def register(self, username: str, password: str, email: str, ip_address: str = None) -> Dict[str, Any]:
         try:
             if not is_valid_username(username):
                 return {'success': False, 'error': 'Invalid username format'}

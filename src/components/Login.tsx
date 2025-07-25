@@ -34,7 +34,7 @@ export const Login: React.FC = () => {
                 <Container className="w-8 h-8 text-white" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">Docker Manager</h1>
+            <h1 className="text-2xl font-bold text-white mb-2">QVP Dashboard</h1>
             <p className="text-slate-400">Sign in to your account</p>
           </div>
 

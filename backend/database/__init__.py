@@ -28,9 +28,29 @@ class UserDatabase:
         return self.db_manager.initialize_database()
     
     # User operations - delegate to UserRepository
-    def create_user(self, user_data):
-        """Create a new user."""
-        return self.user_repo.create_user(user_data)
+    def create_user(self, username_or_data, email=None, password=None):
+        """Create a new user. Supports both old and new signatures."""
+        # Handle old signature: create_user(username, email, password)
+        if isinstance(username_or_data, str) and email is not None and password is not None:
+            user_data = {
+                'username': username_or_data,
+                'email': email,
+                'password': password,
+                'is_admin': False,
+                'is_approved': False,
+                'metadata': {}
+            }
+        # Handle new signature: create_user(user_data)
+        else:
+            user_data = username_or_data
+        
+        # Create the user
+        success = self.user_repo.create_user(user_data)
+        if success:
+            # Return the user_id for backward compatibility
+            user = self.user_repo.get_user_by_email(user_data['email'])
+            return user['id'] if user else None
+        return None
     
     def get_user_by_username(self, username):
         """Get user by username."""
@@ -39,6 +59,10 @@ class UserDatabase:
     def get_user_by_id(self, user_id):
         """Get user by ID."""
         return self.user_repo.get_user_by_id(user_id)
+    
+    def get_user_by_email(self, email):
+        """Get user by email."""
+        return self.user_repo.get_user_by_email(email)
     
     def delete_user_by_username(self, username):
         """Delete a user by their username."""
