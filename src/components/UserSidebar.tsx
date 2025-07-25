@@ -32,7 +32,7 @@ export const UserSidebar: React.FC = () => {
       <nav className="p-4 space-y-2 flex-1">
         {!collapsed && (
           <div className="mb-6">
-            <h3 className="text-xs font-semibold text-sidebar-foreground uppercase tracking-wider mb-3">
+            <h3 className="text-xs font-medium text-sidebar-foreground uppercase tracking-wider mb-3">
               User Panel
             </h3>
           </div>
@@ -53,7 +53,7 @@ export const UserSidebar: React.FC = () => {
             }
           >
             <item.icon className={collapsed ? "w-16 h-6" : "w-6 h-6"} />
-            {!collapsed && <span className="font-medium">{item.label}</span>}
+            {!collapsed && <span className="font-normal">{item.label}</span>}
           </NavLink>
         ))}
       </nav>
@@ -73,7 +73,7 @@ export const UserSidebar: React.FC = () => {
           <div className="bg-sidebar-accent/30 rounded-lg p-3 border border-sidebar-primary/20">
             <div className="flex items-center gap-2 mb-2">
               <Info className="w-4 h-4 text-sidebar-primary" />
-              <span className="text-sm font-medium text-sidebar-foreground">About</span>
+              <span className="text-sm font-normal text-sidebar-foreground">About</span>
             </div>
             <div className="text-xs text-sidebar-foreground/70 leading-relaxed">
               <p className="mb-1">QVP Dashboard v1.0</p>

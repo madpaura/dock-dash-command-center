@@ -5,6 +5,7 @@ import { StatCard } from '../components/StatCard';
 import { ContainerCard } from '../components/ContainerCard';
 import { dashboardApi, userApi, DashboardStats } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import { Button } from '../components/ui/button';
 
 export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -146,14 +147,17 @@ export const AdminDashboard: React.FC = () => {
           <h1 className="text-3xl font-bold text-foreground mb-2">Admin Dashboard</h1>
           <p className="text-muted-foreground">Monitor and manage your Docker infrastructure</p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex gap-3">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Pending Users Alert */}
