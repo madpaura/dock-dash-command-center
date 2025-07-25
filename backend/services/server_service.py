@@ -213,14 +213,10 @@ class ServerService:
             logger.error(f"Error deleting server {server_ip}: {e}")
             return {'success': False, 'error': f'Failed to delete server: {str(e)}'}
     
-    def add_server(self, server_data: AddServerRequest) -> Dict[str, Any]:    
+    def add_server(self, server_data: Dict[str, Any], admin_username: str, ip_address: str) -> Dict[str, Any]:    
         try:
             # Validate required fields
-            name = server_data.name.strip()
-            ip = server_data.ip.strip()
-            port = server_data.port.strip()
-            description = server_data.description.strip()
-            tags = server_data.tags
+            name = server_data.get('name', '').strip()
             ip = server_data.get('ip', '').strip()
             port = server_data.get('port', '8511').strip()
             description = server_data.get('description', '').strip()
