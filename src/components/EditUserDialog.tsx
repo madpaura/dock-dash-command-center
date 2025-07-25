@@ -7,8 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
-import { AdminUser } from '../lib/api';
-import { CheckCircle, XCircle, Server, Cpu, HardDrive, Zap } from 'lucide-react';
+import { AdminUser, ServerForUsers, adminApi } from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
+import { CheckCircle, XCircle, Server, Cpu, HardDrive, Zap, Loader2 } from 'lucide-react';
 
 interface EditUserDialogProps {
   user: AdminUser | null;
@@ -41,12 +42,7 @@ const resourcePresets = {
   custom: { cpu: '', ram: '', gpu: '' }
 };
 
-const serverOptions = [
-  { id: 'server-1', name: 'Server 1', location: 'us-east-1', status: 'online' },
-  { id: 'server-2', name: 'Server 2', location: 'us-west-2', status: 'online' },
-  { id: 'server-3', name: 'Server 3', location: 'eu-west-1', status: 'online' },
-  { id: 'server-4', name: 'Server 4', location: 'ap-south-1', status: 'online' }
-];
+// Server options will be fetched from API
 
 export const EditUserDialog: React.FC<EditUserDialogProps> = ({
   user,
@@ -57,6 +53,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
   onCreate,
   mode = 'edit'
 }) => {
+  const { user: currentUser } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -69,6 +66,31 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>('standard');
   const [customResources, setCustomResources] = useState<ResourceAllocation>(resourcePresets.standard);
   const [isLoading, setIsLoading] = useState(false);
+  const [servers, setServers] = useState<ServerForUsers[]>([]);
+  const [loadingServers, setLoadingServers] = useState(false);
+
+  // Fetch servers when dialog opens
+  useEffect(() => {
+    if (isOpen && currentUser?.token) {
+      fetchServers();
+    }
+  }, [isOpen, currentUser?.token]);
+
+  const fetchServers = async () => {
+    if (!currentUser?.token) return;
+    
+    setLoadingServers(true);
+    try {
+      const response = await adminApi.getServersForUsers(currentUser.token);
+      if (response.success && response.data) {
+        setServers(response.data.servers);
+      }
+    } catch (error) {
+      console.error('Failed to fetch servers:', error);
+    } finally {
+      setLoadingServers(false);
+    }
+  };
 
   useEffect(() => {
     if (mode === 'create') {
@@ -80,7 +102,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
         status: 'Stopped',
         password: ''
       });
-      setSelectedServer('server-1');
+      setSelectedServer(servers.length > 0 ? servers[0].id : '');
       setResourcePreset('standard');
       setCustomResources(resourcePresets.standard);
     } else if (user) {
@@ -93,8 +115,8 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
       });
       
       // Set default server based on current assignment
-      const currentServer = serverOptions.find(s => s.name === user.server);
-      setSelectedServer(currentServer?.id || 'server-1');
+      const currentServer = servers.find(s => s.name === user.server || s.ip === user.server);
+      setSelectedServer(currentServer?.id || (servers.length > 0 ? servers[0].id : ''));
       
       // Set resources based on current allocation
       const currentResources = { cpu: user.resources.cpu, ram: user.resources.ram, gpu: user.resources.gpu };
@@ -110,7 +132,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
       
       setResourcePreset(matchingPreset ? matchingPreset[0] as keyof typeof resourcePresets : 'custom');
     }
-  }, [user, mode]);
+  }, [user, mode, servers]);
 
   const handleResourcePresetChange = (preset: keyof typeof resourcePresets) => {
     setResourcePreset(preset);
@@ -150,18 +172,16 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
     
     setIsLoading(true);
     try {
-      const selectedServerData = serverOptions.find(s => s.id === selectedServer);
-      const userData = {
+      const selectedServerData = servers.find(s => s.id === selectedServer);
+      onCreate?.({
         name: formData.name,
         email: formData.email,
-        password: formData.password || undefined,
+        password: formData.password,
         role: formData.role,
         status: formData.status,
-        server: selectedServerData?.name || 'Server 1',
-        resources: customResources
-      };
-      
-      await onCreate(userData);
+        server: selectedServerData?.name || selectedServerData?.ip || 'Server 1',
+        resources: resourcePreset === 'custom' ? customResources : resourcePresets[resourcePreset]
+      });
       onClose();
     } catch (error) {
       console.error('Error creating user:', error);
@@ -175,8 +195,9 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
     
     setIsLoading(true);
     try {
-      const selectedServerData = serverOptions.find(s => s.id === selectedServer);
-      await onApprove(user.id, selectedServerData?.name || 'Server 1', customResources);
+      const selectedServerData = servers.find(s => s.id === selectedServer);
+      onApprove(user.id, selectedServerData?.name || selectedServerData?.ip || 'Server 1', 
+                resourcePreset === 'custom' ? customResources : resourcePresets[resourcePreset]);
       onClose();
     } catch (error) {
       console.error('Error approving user:', error);
@@ -187,7 +208,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
 
   const isPendingApproval = mode === 'edit' && (user?.role === 'Pending' || user?.status === 'Stopped');
   const isCreateMode = mode === 'create';
-  const selectedServerData = serverOptions.find(s => s.id === selectedServer);
+  const selectedServerData = servers.find(s => s.id === selectedServer);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -291,21 +312,42 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
             <CardContent>
               <div>
                 <Label htmlFor="server">Assigned Server</Label>
-                <Select value={selectedServer} onValueChange={setSelectedServer}>
+                <Select value={selectedServer} onValueChange={setSelectedServer} disabled={loadingServers}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder={loadingServers ? "Loading servers..." : "Select server"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {serverOptions.map((server) => (
-                      <SelectItem key={server.id} value={server.id}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{server.name}</span>
-                          <span className="text-sm text-muted-foreground ml-2">
-                            {server.location}
-                          </span>
+                    {loadingServers ? (
+                      <SelectItem value="loading" disabled>
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Loading servers...</span>
                         </div>
                       </SelectItem>
-                    ))}
+                    ) : servers.length === 0 ? (
+                      <SelectItem value="no-servers" disabled>
+                        <span>No servers available</span>
+                      </SelectItem>
+                    ) : (
+                      servers.map((server) => (
+                        <SelectItem key={server.id} value={server.id}>
+                          <div className="flex items-center gap-2">
+                            <Server className="w-4 h-4" />
+                            <span>{server.name}</span>
+                            <Badge variant={server.status === 'online' ? 'default' : 'secondary'}>
+                              {server.status}
+                            </Badge>
+                            <Badge 
+                              variant={server.availability === 'available' ? 'default' : 
+                                      server.availability === 'limited' ? 'secondary' : 'destructive'}
+                            >
+                              {server.availability}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">({server.location})</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 {selectedServerData && (

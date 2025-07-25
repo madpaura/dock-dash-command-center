@@ -264,26 +264,42 @@ export const AdminUsers: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {getContainerStatusIcon(user.containerStatus)}
-                        <span className="font-mono text-sm">{user.container}</span>
+                        {user.container === 'NA' ? (
+                          <Circle className="w-2 h-2 fill-current text-gray-400" />
+                        ) : (
+                          getContainerStatusIcon(user.containerStatus)
+                        )}
+                        <span className={`font-mono text-sm ${user.container === 'NA' ? 'text-muted-foreground italic' : ''}`}>
+                          {user.container === 'NA' ? 'Pending Assignment' : user.container}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm space-y-1">
-                        <div>CPU: {user.resources.cpu}</div>
-                        <div>RAM: {user.resources.ram}</div>
-                        <div>GPU: {user.resources.gpu}</div>
+                        <div className={user.resources.cpu === 'NA' ? 'text-muted-foreground italic' : ''}>
+                          CPU: {user.resources.cpu === 'NA' ? 'Not assigned' : user.resources.cpu}
+                        </div>
+                        <div className={user.resources.ram === 'NA' ? 'text-muted-foreground italic' : ''}>
+                          RAM: {user.resources.ram === 'NA' ? 'Not assigned' : user.resources.ram}
+                        </div>
+                        <div className={user.resources.gpu === 'NA' ? 'text-muted-foreground italic' : ''}>
+                          GPU: {user.resources.gpu === 'NA' ? 'Not assigned' : user.resources.gpu}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        <div className="font-medium">{user.server}</div>
-                        <div className="text-muted-foreground">{user.serverLocation}</div>
+                        <div className={`font-medium ${user.server === 'NA' ? 'text-muted-foreground italic' : ''}`}>
+                          {user.server === 'NA' ? 'Not assigned' : user.server}
+                        </div>
+                        <div className={`text-muted-foreground ${user.serverLocation === 'NA' ? 'italic' : ''}`}>
+                          {user.serverLocation === 'NA' ? 'Pending assignment' : user.serverLocation}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(user.status)}>
-                        {user.status}
+                        {user.status === 'Pending' && user.isNewRegistration ? 'Awaiting Approval' : user.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">

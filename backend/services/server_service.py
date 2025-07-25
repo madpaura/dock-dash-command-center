@@ -317,6 +317,79 @@ class ServerService:
             logger.error(f"Error fetching servers list: {e}")
             return []
     
+    def get_servers_for_user_management(self) -> List[Dict[str, Any]]:
+        """
+        Get list of available servers for user management with capacity information.
+        
+        Returns:
+            List[Dict[str, Any]]: List of servers with capacity details
+        """
+        try:
+            # Use cached data for better performance
+            cached_data = self.get_cached_server_data()
+            servers_data = cached_data['servers']
+            
+            # Transform to user management format with capacity information
+            servers_list = []
+            for server in servers_data:
+                # Calculate capacity utilization
+                cpu_utilization = server.get('cpu', 0)
+                memory_utilization = server.get('memory', 0)
+                
+                # Determine availability status
+                availability = 'available'
+                if server['status'] != 'online':
+                    availability = 'unavailable'
+                elif cpu_utilization > 80 or memory_utilization > 80:
+                    availability = 'limited'
+                
+                servers_list.append({
+                    'id': server['id'],
+                    'ip': server['ip'],
+                    'name': f"Server {server['ip']}",
+                    'status': server['status'],
+                    'location': self._get_server_location(server['ip']),
+                    'availability': availability,
+                    'capacity': {
+                        'cpu_usage': cpu_utilization,
+                        'memory_usage': memory_utilization,
+                        'containers': server.get('containers', 0),
+                        'max_containers': 10  # Default limit
+                    },
+                    'resources': {
+                        'cpu_cores': server.get('cpu_cores', 4),
+                        'total_memory': server.get('total_memory', 8),
+                        'remaining_cpu': server.get('remaining_cpu', 2),
+                        'remaining_memory': server.get('remaining_memory', 4)
+                    }
+                })
+            
+            return servers_list
+            
+        except Exception as e:
+            logger.error(f"Error fetching servers for user management: {e}")
+            return []
+    
+    def _get_server_location(self, ip: str) -> str:
+        """
+        Get server location based on IP address.
+        This is a simple mapping - in production, this could be more sophisticated.
+        """
+        # Simple mapping based on IP patterns or configuration
+        location_map = {
+            '127.0.0.1': 'localhost',
+            '192.168.1': 'us-east-1',
+            '192.168.2': 'us-west-2',
+            '192.168.3': 'eu-west-1',
+            '192.168.4': 'ap-south-1'
+        }
+        
+        for ip_prefix, location in location_map.items():
+            if ip.startswith(ip_prefix):
+                return location
+        
+        return 'unknown'
+    
     def invalidate_cache(self):
         """Invalidate the server data cache."""
         self.cache['data'] = None

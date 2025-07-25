@@ -259,6 +259,28 @@ export interface AdminUser {
   server: string;
   serverLocation: string;
   status: string;
+  isNewRegistration?: boolean;
+}
+
+export interface ServerForUsers {
+  id: string;
+  ip: string;
+  name: string;
+  status: 'online' | 'offline' | 'maintenance';
+  location: string;
+  availability: 'available' | 'limited' | 'unavailable';
+  capacity: {
+    cpu_usage: number;
+    memory_usage: number;
+    containers: number;
+    max_containers: number;
+  };
+  resources: {
+    cpu_cores: number;
+    total_memory: number;
+    remaining_cpu: number;
+    remaining_memory: number;
+  };
 }
 
 export interface AdminStats {
@@ -282,8 +304,8 @@ export interface AuditLog {
 }
 
 export const adminApi = {
-  async getAdminUsers(token: string): Promise<ApiResponse<AdminUser[]>> {
-    return fetchApi<AdminUser[]>('/admin/users', {
+  async getAdminUsers(token: string): Promise<ApiResponse<{ users: AdminUser[] }>> {
+    return fetchApi<{ users: AdminUser[] }>('/admin/users', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -356,6 +378,15 @@ export const adminApi = {
   async clearAuditLogs(token: string): Promise<ApiResponse<{ message: string }>> {
     return fetchApi<{ message: string }>('/audit-logs', {
       method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  getServersForUsers: async (token: string): Promise<ApiResponse<{ servers: ServerForUsers[] }>> => {
+    return fetchApi('/admin/servers/for-users', {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -674,7 +705,7 @@ export const dashboardApi = {
     const adminStats = adminStatsRes.data?.stats;
     const serverStats = serverStatsRes.data?.stats;
     const servers = serversRes.data?.servers || [];
-    const pendingUsers = pendingUsersRes.data?.users || [];
+    const pendingUsers = pendingUsersRes.data || [];
 
     // Calculate aggregated stats
     const totalContainers = servers.reduce((sum, server) => sum + (server.containers || 0), 0);

@@ -471,6 +471,21 @@ def get_servers_list():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/admin/servers/for-users', methods=['GET'])
+def get_servers_for_users():
+    """Get servers list for user management with capacity information."""
+    session, error_response, status_code = require_admin_auth()
+    if error_response:
+        return error_response, status_code
+    
+    try:
+        servers_list = server_service.get_servers_for_user_management()
+        return jsonify({'success': True, 'servers': servers_list})
+    except Exception as e:
+        logger.error(f"Error getting servers for user management: {e}")
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+
+
 # Audit logs endpoints
 @app.route('/api/audit-logs', methods=['GET'])
 def get_audit_logs():
