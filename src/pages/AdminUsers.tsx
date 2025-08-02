@@ -159,7 +159,7 @@ export const AdminUsers: React.FC = () => {
       if (response.success) {
         success('User updated successfully!');
         // Refresh data to get updated user info
-        await fetchData();
+        await fetchData(false);
       } else {
         showError('Failed to update user', response.error || 'Unknown error occurred');
       }
@@ -187,7 +187,7 @@ export const AdminUsers: React.FC = () => {
         }
         
         // Refresh data to get updated user info
-        await fetchData();
+        await fetchData(false);
       } else {
         showError('Failed to approve user', response.error || response.data?.error || 'Unknown error occurred');
       }
@@ -220,7 +220,7 @@ export const AdminUsers: React.FC = () => {
           success('User created successfully!');
         }
         // Refresh data to show new user
-        await fetchData();
+        await fetchData(false);
       } else {
         showError('Failed to create user', response.error || 'Unknown error occurred');
       }
@@ -249,7 +249,7 @@ export const AdminUsers: React.FC = () => {
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">Error: {error}</p>
-          <Button onClick={fetchData} className="mt-2">
+          <Button onClick={() => fetchData(false)} className="mt-2">
             Retry
           </Button>
         </div>
