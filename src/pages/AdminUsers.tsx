@@ -19,6 +19,16 @@ import { useAuth } from '../hooks/useAuth';
 import { EditUserDialog } from '../components/EditUserDialog';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/Toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 
 
@@ -53,6 +63,9 @@ export const AdminUsers: React.FC = () => {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'edit' | 'create'>('edit');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = async () => {
     if (!user?.token) return;
@@ -86,19 +99,29 @@ export const AdminUsers: React.FC = () => {
     fetchData();
   }, [user?.token]);
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!user?.token) return;
+  const handleDeleteUser = (userId: string) => {
+    setUserToDelete(userId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmedDelete = async () => {
+    if (!user?.token || !userToDelete) return;
     
     try {
-      const response = await adminApi.deleteUser(userId, user.token);
+      setIsDeleting(true);
+      const response = await adminApi.deleteUser(userToDelete, user.token);
       if (response.success) {
         success('User deleted successfully!');
-        setUsers(users.filter(u => u.id !== userId));
+        setUsers(users.filter(u => u.id !== userToDelete));
+        setIsDeleteDialogOpen(false);
+        setUserToDelete(null);
       } else {
         showError('Failed to delete user', response.error || 'Unknown error occurred');
       }
     } catch (err) {
       showError('Failed to delete user', 'Network error occurred');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -331,8 +354,13 @@ export const AdminUsers: React.FC = () => {
                           size="sm" 
                           className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                           onClick={() => handleDeleteUser(user.id)}
+                          disabled={isDeleting && userToDelete === user.id}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {isDeleting && userToDelete === user.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
                     </TableCell>
@@ -396,6 +424,35 @@ export const AdminUsers: React.FC = () => {
         onCreate={handleCreateUser}
         mode={dialogMode}
       />
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the user and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmedDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete User"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
