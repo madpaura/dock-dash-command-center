@@ -12,7 +12,8 @@ import {
   Edit, 
   Trash2,
   Circle,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { adminApi, type AdminUser, type AdminStats, type UserApprovalResponse, type ContainerCreationResult } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
@@ -66,12 +67,17 @@ export const AdminUsers: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (isRefresh = false) => {
     if (!user?.token) return;
     
     try {
-      setIsLoading(true);
+      if (isRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
       setError(null);
       
       const [usersResponse, statsResponse] = await Promise.all([
@@ -89,15 +95,23 @@ export const AdminUsers: React.FC = () => {
         setStats(statsResponse.data.stats);
       }
     } catch (err) {
-      setError('Network error occurred');
+      setError('Failed to fetch data');
     } finally {
-      setIsLoading(false);
+      if (isRefresh) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
   }, [user?.token]);
+
+  const handleRefresh = () => {
+    fetchData(true);
+  };
 
   const handleDeleteUser = (userId: string) => {
     setUserToDelete(userId);
@@ -251,10 +265,27 @@ export const AdminUsers: React.FC = () => {
           <h1 className="text-3xl font-bold text-foreground">User Management</h1>
           <p className="text-muted-foreground mt-1">Manage users and their container resources</p>
         </div>
-        <Button className="gap-2" onClick={handleAddUser}>
-          <Plus className="w-4 h-4" />
-          Add New User
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isLoading || isRefreshing}
+            className="gap-2"
+          >
+            {isRefreshing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                <span>Refresh</span>
+              </>
+            )}
+          </Button>
+          <Button className="gap-2" onClick={handleAddUser}>
+            <Plus className="w-4 h-4" />
+            Add New User
+          </Button>
+        </div>
       </div>
 
       {/* Users Section */}
