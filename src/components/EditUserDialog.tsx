@@ -446,8 +446,17 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
               disabled={isLoading}
               className="bg-green-600 hover:bg-green-700"
             >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              {isLoading ? 'Approving...' : 'Approve & Assign'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Approve & Assign
+                </>
+              )}
             </Button>
           )}
           
