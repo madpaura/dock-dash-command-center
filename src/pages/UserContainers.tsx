@@ -53,7 +53,7 @@ export const UserContainers: React.FC = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">My Containers</h1>
+        <h1 className="text-3xl font-bold text-foreground mb-2">My Services</h1>
         <p className="text-muted-foreground">Manage your assigned containers and hosted services</p>
       </div>
 
@@ -106,10 +106,10 @@ export const UserContainers: React.FC = () => {
       {/* Containers List */}
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-foreground">My Containers</h2>
+          <h2 className="text-xl font-semibold text-foreground">My Services</h2>
           <button className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2">
             <Container className="w-4 h-4" />
-            Request New Container
+            Request New Service
           </button>
         </div>
 

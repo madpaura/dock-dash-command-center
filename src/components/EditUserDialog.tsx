@@ -196,7 +196,9 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
     setIsLoading(true);
     try {
       const selectedServerData = servers.find(s => s.id === selectedServer);
-      onApprove(user.id, selectedServerData?.name || selectedServerData?.ip || 'Server 1', 
+      // Send just the IP address, not the server name with "Server" prefix
+      const serverIp = selectedServerData?.ip || '127.0.0.1';
+      onApprove(user.id, serverIp, 
                 resourcePreset === 'custom' ? customResources : resourcePresets[resourcePreset]);
       onClose();
     } catch (error) {

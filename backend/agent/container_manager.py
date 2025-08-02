@@ -164,6 +164,85 @@ class DockerContainerManager:
         finally:
             self.lock.release()
 
+    def delete_container(self, container_id_or_name, user_id=None, username=None):
+        self.lock.acquire()
+        try:
+            result = {
+                'success': False,
+                'message': '',
+                'container_stopped': False,
+                'container_removed': False,
+                'ports_deallocated': False
+            }
+            
+            try:
+                container = self.client.containers.get(container_id_or_name)
+                
+                # Stop container if it's running
+                if container.status == 'running':
+                    try:
+                        container.stop(timeout=10)
+                        result['container_stopped'] = True
+                        logger.info(f"Container {container_id_or_name} stopped successfully")
+                    except docker.errors.APIError as e:
+                        logger.warning(f"Error stopping container {container_id_or_name}: {e}")
+                
+                # Remove the container
+                try:
+                    container.remove(force=True)
+                    result['container_removed'] = True
+                    logger.success(f"Container {container_id_or_name} removed successfully")
+                except docker.errors.APIError as e:
+                    logger.error(f"Error removing container {container_id_or_name}: {e}")
+                    result['message'] = f"Failed to remove container: {e}"
+                    return result
+                    
+            except docker.errors.NotFound:
+                logger.warning(f"Container {container_id_or_name} not found, may already be deleted")
+                result['container_removed'] = True  # Consider it removed if not found
+            
+            # Deallocate ports if user_id is provided
+            if user_id:
+                try:
+                    port_manager = PortManager()
+                    deallocated_ports = port_manager.deallocate_ports(username)
+                    if deallocated_ports:
+                        result['ports_deallocated'] = True
+                        result['deallocated_ports'] = deallocated_ports
+                        logger.info(f"Ports deallocated for user {username}: {deallocated_ports}")
+                    else:
+                        logger.info(f"No ports found to deallocate for user {username}")
+                        result['ports_deallocated'] = True  # No ports to deallocate is also success
+                except Exception as e:
+                    logger.error(f"Error deallocating ports for user {username}: {e}")
+                    result['message'] += f" Port deallocation failed: {e}"
+            
+            # Determine overall success
+            if result['container_removed']:
+                result['success'] = True
+                if result['container_stopped'] and result['ports_deallocated']:
+                    result['message'] = f"Container {container_id_or_name} successfully deleted and ports deallocated"
+                elif result['container_stopped']:
+                    result['message'] = f"Container {container_id_or_name} successfully stopped and removed"
+                else:
+                    result['message'] = f"Container {container_id_or_name} successfully removed"
+            else:
+                result['message'] = f"Failed to delete container {container_id_or_name}"
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"Unexpected error deleting container {container_id_or_name}: {e}")
+            return {
+                'success': False,
+                'message': f"Unexpected error: {e}",
+                'container_stopped': False,
+                'container_removed': False,
+                'ports_deallocated': False
+            }
+        finally:
+            self.lock.release()
+
     def get_container_stats(self, container):
         self.lock.acquire()
         try:
@@ -297,7 +376,7 @@ def init_backend_routes(app):
     def download_file(filename):
         return send_from_directory(STATIC_DOWNLOADS_DIR, filename, as_attachment=True)
 
-    @app.route("/api/containers", methods=["POST"])
+    @app.route("/api/containers/create", methods=["POST"])
     def create_container():
         data = request.get_json()
         user = data["user"]
@@ -339,11 +418,48 @@ def init_backend_routes(app):
 
         # TODO revamp this section
         container_name = docker_helper.get_contianer_name(user)
+        
+        # Check if container already exists
+        existing_container = docker_manager.list_container(container_name)
+        if existing_container:
+            logger.info(f"Container {container_name} already exists, returning existing container info")
+            return jsonify(
+                {
+                    "success": True,
+                    "container": {
+                        "id": existing_container.id,
+                        "name": existing_container.name,
+                        "status": existing_container.status,
+                    },
+                    "message": "Container already exists and is being reused"
+                }
+            )
+        
         guest_os_path_host = os.path.join(dir_deploy, "guestos")
         config_path_host = os.path.join(dir_deploy, "code/config")
         qvp_bin_path_host = os.path.join(dir_deploy, "qvp")
         tools_path_host = os.path.join(dir_deploy, "tools")
         arm_path_host = os.path.join(dir_deploy, "tools/ARMCompiler6.16")
+        kvm_path_host = "/dev/kvm"
+        
+        volumes = {}
+        volume_mounts = [
+            (guest_os_path_host, os.getenv("GUEST_OS_MOUNT", "/opt/guestos"), "rw"),
+            (config_path_host, os.getenv("CODE_CONFIG_MOUNT", "/config"), "rw"),
+            (qvp_bin_path_host, os.getenv("QVP_BINARY_MOUNT", "/opt/qvp"), "rw"),
+            (tools_path_host, os.getenv("TOOLS_MOUNT", "/opt/tools"), "ro"),
+            (arm_path_host, "/usr/local/ARMCompiler6.16", "ro"),
+            (kvm_path_host, "/dev/kvm", "rw"),
+        ]
+        
+        for host_path, container_path, mode in volume_mounts:
+            if os.path.exists(host_path):
+                volumes[host_path] = {
+                    "bind": container_path,
+                    "mode": mode,
+                }
+            else:
+                logger.warning(f"Host directory {host_path} does not exist, skipping mount")
 
         port_manager = PortManager()
         new_ports = port_manager.allocate_ports(user)
@@ -354,47 +470,6 @@ def init_backend_routes(app):
         spice_port_host = start_port + 2
         fm_ui_port_host = start_port + 3
         fm_port_host = start_port + 4
-
-        volumes = {}
-
-        volumes["/dev/kvm"] = {
-            "bind": "/dev/kvm",
-            "mode": "rw",
-        }
-
-        volumes["/opt/os/guestos_base"] = {
-            "bind": "/opt/os/guestos_base",
-            "mode": "ro",
-        }
-
-        volumes[guest_os_path_host] = {
-            "bind": os.getenv("GUEST_OS_MOUNT"),
-            "mode": "rw",
-        }
-        volumes[config_path_host] = {
-            "bind": os.getenv("CODE_CONFIG_MOUNT"),
-            "mode": "rw",
-        }
-
-        volumes[qvp_bin_path_host] = {
-            "bind": os.getenv("QVP_BINARY_MOUNT"),
-            "mode": "rw",
-        }
-
-        volumes[tools_path_host] = {
-            "bind": os.getenv("TOOLS_MOUNT"),
-            "mode": "ro",
-        }
-
-        volumes[arm_path_host] = {
-            "bind": "/usr/local/ARMCompiler6.16",
-            "mode": "ro",
-        }
-
-        volumes["/dev/kvm"] = {
-            "bind": "/dev/kvm",
-            "mode": "rw",
-        }
 
         ports = {}
         ports[os.getenv("CODE_PORT", 8443)] = code_port_host
@@ -430,11 +505,11 @@ def init_backend_routes(app):
                     }
                 )
             logger.error(f"Failed to start container: {str(error)}")
-            return jsonify({"success": False, "error": {str(error)}}), 400
+            return jsonify({"success": False, "error": str(error)}), 400
 
         except Exception as e:
             logger.error(f"Failed to start container: {str(e)}")
-            return jsonify({"success": False, "error": {str(error)}}), 400
+            return jsonify({"success": False, "error": str(e)}), 400
 
     @app.route("/api/containers/<string:name>", methods=["GET"])
     def get_container(name):
@@ -473,6 +548,16 @@ def init_backend_routes(app):
         if docker_manager.remove_container(container_id, force=True):
             return jsonify({"success": True})
         return jsonify({"success": False, "error": "Failed to remove container"}), 400
+
+    @app.route("/api/containers/<string:container_id>/delete", methods=["POST"])
+    def delete_container(container_id):
+        data = request.get_json() or {}
+        result = docker_manager.delete_container(container_id, data.get('user_id'),
+                                                data.get('username'))
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
 
     @app.route("/api/containers/<string:container_id>/restart", methods=["POST"])
     def restart_container(container_id):

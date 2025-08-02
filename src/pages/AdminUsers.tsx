@@ -14,7 +14,7 @@ import {
   Circle,
   Loader2
 } from 'lucide-react';
-import { adminApi, type AdminUser, type AdminStats } from '../lib/api';
+import { adminApi, type AdminUser, type AdminStats, type UserApprovalResponse, type ContainerCreationResult } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { EditUserDialog } from '../components/EditUserDialog';
 import { useToast } from '../hooks/useToast';
@@ -37,7 +37,9 @@ const getStatusColor = (status: string) => {
 
 const getContainerStatusIcon = (status: string) => {
   const color = status === 'running' ? 'text-green-500' : 
-                status === 'stopped' ? 'text-yellow-500' : 'text-red-500';
+                status === 'stopped' ? 'text-yellow-500' :
+                status === 'failed' ? 'text-red-500' :
+                status === 'pending' ? 'text-gray-400' : 'text-red-500';
   return <Circle className={`w-2 h-2 fill-current ${color}`} />;
 };
 
@@ -134,12 +136,23 @@ export const AdminUsers: React.FC = () => {
     
     try {
       const response = await adminApi.approveUser(userId, server, resources, user.token);
-      if (response.success) {
-        success('User approved successfully!');
+      if (response.success && response.data) {
+        const { container_result, user_approved } = response.data;
+        
+        if (user_approved) {
+          if (container_result.success) {
+            success(`User approved successfully! Container created: ${container_result.container?.name || 'Unknown'}`);
+          } else {
+            success(`User approved successfully, but container creation failed: ${container_result.message}`);
+          }
+        } else {
+          showError('Failed to approve user', 'User approval failed');
+        }
+        
         // Refresh data to get updated user info
         await fetchData();
       } else {
-        showError('Failed to approve user', response.error || 'Unknown error occurred');
+        showError('Failed to approve user', response.error || response.data?.error || 'Unknown error occurred');
       }
     } catch (err) {
       showError('Failed to approve user', 'Network error occurred');
@@ -269,8 +282,9 @@ export const AdminUsers: React.FC = () => {
                         ) : (
                           getContainerStatusIcon(user.containerStatus)
                         )}
-                        <span className={`font-mono text-sm ${user.container === 'NA' ? 'text-muted-foreground italic' : ''}`}>
-                          {user.container === 'NA' ? 'Pending Assignment' : user.container}
+                        <span className={`font-mono text-sm ${user.container === 'NA' ? 'text-muted-foreground italic' : user.containerStatus === 'failed' ? 'text-red-500' : ''}`}>
+                          {user.container === 'NA' ? 'Pending Assignment' : 
+                           user.containerStatus === 'failed' ? 'Creation Failed' : user.container}
                         </span>
                       </div>
                     </TableCell>

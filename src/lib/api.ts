@@ -283,6 +283,25 @@ export interface ServerForUsers {
   };
 }
 
+// Container creation interfaces
+export interface ContainerCreationResult {
+  success: boolean;
+  container?: {
+    id: string;
+    name: string;
+    status: string;
+  };
+  error?: string;
+  message: string;
+}
+
+export interface UserApprovalResponse {
+  success: boolean;
+  container_result: ContainerCreationResult;
+  user_approved: boolean;
+  error?: string;
+}
+
 export interface AdminStats {
   totalUsers: number;
   totalUsersChange: string;
@@ -347,8 +366,8 @@ export const adminApi = {
     });
   },
 
-  async approveUser(userId: string, server: string, resources: { cpu: string; ram: string; gpu: string }, token: string): Promise<ApiResponse<{}>> {
-    return fetchApi<{}>(`/admin/users/${userId}/approve`, {
+  async approveUser(userId: string, server: string, resources: { cpu: string; ram: string; gpu: string }, token: string): Promise<ApiResponse<UserApprovalResponse>> {
+    return fetchApi<UserApprovalResponse>(`/admin/users/${userId}/approve`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

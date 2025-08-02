@@ -57,14 +57,14 @@ class PortManager:
             user_ports = cursor.fetchone()
             if not user_ports:
                 logger.error(f"No ports allocated for user {user_id}.")
-                return None
+                return False
 
             # Deallocate the port range
             cursor.execute("DELETE FROM port_allocations WHERE user_id = ?", (user_id,))
             conn.commit()
 
             logger.success(f"Port range deallocated for user {user_id}: [{user_ports[1]}-{user_ports[2]}]")
-            return None
+            return True
 
     def get_allocated_ports(self, user_id):
         """Get the allocated port range for a specific user."""

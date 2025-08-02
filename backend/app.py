@@ -149,15 +149,25 @@ def get_user_info(user_id):
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    """Delete user endpoint."""
     admin_username = auth_service.get_admin_username_from_token()
-    ip_address = get_client_ip(request)
+    result = user_service.delete_user(user_id, admin_username)
     
-    success = user_service.delete_user(user_id, admin_username, ip_address)
-    
-    if success:
-        return jsonify({'success': True})
-    return jsonify({'success': False, 'error': 'User not found'}), 404
+    if result['success']:
+        return jsonify({
+            'success': True,
+            'message': result['message'],
+            'user_deleted': result['user_deleted'],
+            'container_deleted': result['container_deleted'],
+            'container_details': result.get('container_details')
+        })
+    else:
+        return jsonify({
+            'success': False, 
+            'error': result['message'],
+            'user_deleted': result['user_deleted'],
+            'container_deleted': result['container_deleted'],
+            'container_details': result.get('container_details')
+        }), 400
 
 
 @app.route('/api/users/pending', methods=['GET'])
@@ -179,15 +189,16 @@ def approve_user(user_id):
     
     data = request.get_json()
     server_id = data.get('server')
+    resources = data.get('resources', {})
     admin_username = session.get('username')
     ip_address = get_client_ip(request)
-    agent_port = os.getenv('AGENT_PORT', '8510')
+    agent_port = int(os.getenv('AGENT_PORT', '8510')) + 1
     
-    success = user_service.approve_user(user_id, server_id, admin_username, agent_port, ip_address)
+    result = user_service.approve_user(user_id, server_id, admin_username, agent_port, ip_address, resources)
     
-    if success:
-        return jsonify({'success': True})
-    return jsonify({'success': False, 'error': 'User not found'}), 404
+    if result.get('success'):
+        return jsonify(result)
+    return jsonify(result), 400
 
 
 # Admin user management endpoints
