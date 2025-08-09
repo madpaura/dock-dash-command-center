@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
+"""
+Nginx User Routing Test Suite
+
+Comprehensive test suite for the nginx user management system.
+Tests both the Python script functionality and the actual nginx routing.
+"""
 
 import subprocess
 import time
 import requests
 import sys
 import os
+import tempfile
+import shutil
+import unittest
+from pathlib import Path
+
+# Add the nginx directory to the path to import the add_user module
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from add_user import NginxUserManager
 
 def run_command(command, description):
     """Run a shell command and return the result"""
@@ -41,57 +55,27 @@ def stop_dummy_services(process):
 
 def remove_test_user():
     """Remove testuser from nginx configuration if it exists"""
-    config_file = "/home/vishwa/gpu/dock-dash-command-center/nginx/sites-available/dev-services"
+    manager = NginxUserManager()
     
     try:
-        # Read the current config
-        with open(config_file, 'r') as f:
-            lines = f.readlines()
-        
-        # Filter out testuser blocks
-        filtered_lines = []
-        skip_block = False
-        brace_count = 0
-        
-        for line in lines:
-            if '# testuser' in line:
-                skip_block = True
-                continue
-            
-            if skip_block:
-                if '{' in line:
-                    brace_count += line.count('{')
-                if '}' in line:
-                    brace_count -= line.count('}')
-                    if brace_count <= 0:
-                        skip_block = False
-                        brace_count = 0
-                continue
-            
-            filtered_lines.append(line)
-        
-        # Write back the filtered config
-        command = f"sudo tee {config_file} > /dev/null"
-        process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, text=True)
-        process.communicate(''.join(filtered_lines))
-        
-        if process.returncode == 0:
-            print("  Success: Removed existing testuser")
-            return True
+        if manager.check_user_exists("testuser"):
+            print("Removing existing testuser configuration")
+            success = manager.remove_user("testuser")
+            if not success:
+                print("Warning: Failed to remove existing testuser configuration")
         else:
-            print("  Failed: Could not write config file")
-            return False
+            print("No existing testuser configuration found")
             
     except Exception as e:
-        print(f"  Error removing testuser: {e}")
+        print(f"Error removing testuser: {e}")
         return False
 
 def add_test_user():
-    """Add a test user using the add_user.sh script"""
+    """Add a test user using the add_user.py script"""
     # First remove existing testuser if present
     remove_test_user()
     
-    command = "sudo ./add_user.sh testuser 127.0.0.1:8080 127.0.0.1:8088"
+    command = "python3 ../add_user.py testuser 127.0.0.1:8080 127.0.0.1:8088"
     success, output = run_command(command, "Add test user")
     return success
 
@@ -121,8 +105,119 @@ def test_service_access():
     
     return all(results)
 
+class TestNginxUserManager(unittest.TestCase):
+    """Unit tests for NginxUserManager class."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        # Create a temporary config file for testing
+        self.test_config = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.conf')
+        self.test_config.write(self.get_sample_config())
+        self.test_config.close()
+        
+        self.manager = NginxUserManager(self.test_config.name)
+    
+    def tearDown(self):
+        """Clean up test fixtures."""
+        os.unlink(self.test_config.name)
+    
+    def get_sample_config(self):
+        """Get sample nginx configuration for testing."""
+        return '''
+# Sample nginx configuration for testing
+upstream vscode_user1 {
+    server 192.168.1.10:8080 max_fails=3 fail_timeout=30s;
+    least_conn;
+}
+
+upstream jupyter_user1 {
+    server 192.168.1.10:8088 max_fails=3 fail_timeout=30s;
+    least_conn;
+}
+
+server {
+    listen 80;
+    
+    location ~ ^/([^/]+)/vscode/(.*)$ {
+        set $user $1;
+        set $path $2;
+        
+        if ($user = "user1") {
+            proxy_pass http://vscode_user1/$path$is_args$args;
+        }
+        if ($user = "user2") {
+            proxy_pass http://vscode_user2/$path$is_args$args;
+        }
+    }
+    
+    location ~ ^/([^/]+)/jupyter/(.*)$ {
+        set $user $1;
+        set $path $2;
+        
+        if ($user = "user1") {
+            proxy_pass http://jupyter_user1/$path$is_args$args;
+        }
+        proxy_pass http://jupyter_user2/$path$is_args$args;
+    }
+}
+'''
+    
+    def test_validate_username(self):
+        """Test username validation."""
+        # Valid usernames
+        self.assertTrue(self.manager.validate_username("user1"))
+        self.assertTrue(self.manager.validate_username("test-user"))
+        self.assertTrue(self.manager.validate_username("test_user"))
+        self.assertTrue(self.manager.validate_username("user123"))
+        
+        # Invalid usernames
+        self.assertFalse(self.manager.validate_username(""))
+        self.assertFalse(self.manager.validate_username("user@test"))
+        self.assertFalse(self.manager.validate_username("user.test"))
+        self.assertFalse(self.manager.validate_username("user space"))
+    
+    def test_validate_server_address(self):
+        """Test server address validation."""
+        # Valid addresses
+        self.assertTrue(self.manager.validate_server_address("192.168.1.10:8080"))
+        self.assertTrue(self.manager.validate_server_address("127.0.0.1:3000"))
+        self.assertTrue(self.manager.validate_server_address("10.0.0.1:65535"))
+        
+        # Invalid addresses
+        self.assertFalse(self.manager.validate_server_address(""))
+        self.assertFalse(self.manager.validate_server_address("192.168.1.10"))
+        self.assertFalse(self.manager.validate_server_address("192.168.1.256:8080"))
+        self.assertFalse(self.manager.validate_server_address("192.168.1.10:70000"))
+        self.assertFalse(self.manager.validate_server_address("invalid:8080"))
+    
+    def test_check_user_exists(self):
+        """Test user existence checking."""
+        # Existing user
+        self.assertTrue(self.manager.check_user_exists("user1"))
+        
+        # Non-existing user
+        self.assertFalse(self.manager.check_user_exists("nonexistent"))
+    
+    def test_create_upstream_block(self):
+        """Test upstream block creation."""
+        block = self.manager.create_upstream_block("vscode", "testuser", "192.168.1.10:8080")
+        
+        self.assertIn("upstream vscode_testuser", block)
+        self.assertIn("server 192.168.1.10:8080", block)
+        self.assertIn("least_conn", block)
+        self.assertIn("zone vscode_testuser", block)
+
+
 def main():
-    print("Starting NGINX user routing unit test...")
+    """Main test execution function."""
+    print("Starting NGINX user routing comprehensive test suite...")
+    
+    # Run unit tests first
+    print("\n=== Running Unit Tests ===")
+    unittest.main(argv=[''], exit=False, verbosity=2)
+    
+    # Run integration tests
+    print("\n=== Running Integration Tests ===")
     
     # Start dummy services
     dummy_process = start_dummy_services()
@@ -131,27 +226,72 @@ def main():
         # Wait a moment for services to fully start
         time.sleep(2)
         
-        # Add test user
-        if not add_test_user():
-            print("Failed to add test user. Exiting.")
-            return False
-        
-        # Wait for NGINX to reload
-        time.sleep(3)
-        
-        # Test service access
-        success = test_service_access()
+        # Test the actual script functionality
+        success = test_script_integration()
         
         if success:
-            print("\nAll tests passed! NGINX user routing is working correctly.")
+            print("\nAll integration tests passed! NGINX user routing is working correctly.")
         else:
-            print("\nSome tests failed. Check the output above for details.")
+            print("\nSome integration tests failed. Check the output above for details.")
             
         return success
         
     finally:
         # Stop dummy services
         stop_dummy_services(dummy_process)
+        
+        # Clean up test user
+        remove_test_user()
+
+
+def test_script_integration():
+    """Test the actual script integration with nginx."""
+    print("Testing script integration...")
+    
+    # Add test user
+    if not add_test_user():
+        print("Failed to add test user. Exiting.")
+        return False
+    
+    # Wait for NGINX to reload
+    time.sleep(3)
+    
+    # Test service access
+    success = test_service_access()
+    
+    # Test additional functionality
+    if success:
+        success = test_user_management_features()
+    
+    return success
+
+
+def test_user_management_features():
+    """Test additional user management features."""
+    print("Testing user management features...")
+    
+    # Test list users functionality
+    command = "python3 ./add_user.py --list"
+    success, output = run_command(command, "List users")
+    
+    if success and "testuser" in output:
+        print("  List users: Success")
+    else:
+        print("  List users: Failed")
+        return False
+    
+    # Test validation (should fail with invalid input)
+    command = "python3 ./add_user.py invalid@user 192.168.1.10:8080 192.168.1.10:8088"
+    success, output = run_command(command, "Test validation (should fail)")
+    
+    if not success:  # Should fail due to invalid username
+        print("  Validation test: Success (correctly rejected invalid input)")
+    else:
+        print("  Validation test: Failed (should have rejected invalid input)")
+        return False
+    
+    return True
+
 
 if __name__ == "__main__":
     success = main()

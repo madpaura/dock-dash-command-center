@@ -65,25 +65,3 @@ server {
 
 
 
-
-# testuser
-upstream vscode_testuser {
-    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
-    # Use least_conn for better load distribution
-    least_conn;
-    
-    # Enable health checks
-    zone vscode_testuser 64k;
-    keepalive 32;
-}
-
-# testuser
-upstream jupyter_testuser {
-    server 127.0.0.1:8088 max_fails=3 fail_timeout=30s;
-    # Use least_conn for better load distribution
-    least_conn;
-    
-    # Enable health checks
-    zone jupyter_testuser 64k;
-    keepalive 32;
-}
