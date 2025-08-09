@@ -89,7 +89,6 @@ class AuditService:
             'update_admin_user': 'user.service',
             'delete_user': 'user.service',
             'approve_user': 'user.service',
-            'approve_admin_user': 'user.service',
             'server_action': 'server.service',
             'server_added': 'server.service',
             'ssh_connect': 'ssh.service',

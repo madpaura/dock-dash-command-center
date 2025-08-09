@@ -162,7 +162,8 @@ class UserService:
             redirect_server = server_assignment
             # Create Docker container for the user
             container_result = self._create_user_container(user['username'], redirect_server, user_resources, agent_port)
-            
+            redirect_url=f"NA"
+            is_approved = False
             # Update metadata with container information if container was created successfully
             if container_result.get('success') and container_result.get('container'):
                 container_info = container_result['container']
@@ -173,56 +174,59 @@ class UserService:
                     'created_at': datetime.now().isoformat()
                 }
                 logger.info(f"Container {container_info.get('name')} assigned to user {user['username']}")
+                redirect_url=f"http://{redirect_server}:{agent_port}"
+                is_approved = True
             else:
-                # Store container creation failure info
                 metadata['container'] = {
                     'creation_failed': True,
                     'error': container_result.get('error', 'Unknown error'),
                     'attempted_at': datetime.now().isoformat()
                 }
                 logger.warning(f"Container creation failed for user {user['username']}: {container_result.get('error')}")
-            
+
             # Update user approval status
-            if self.db.update_user(user_id, {
-                'is_approved': True,
-                'redirect_url': f"http://{redirect_server}:{agent_port}",
+            self.db.update_user(user_id, {
+                'is_approved': is_approved,
+                'redirect_url': redirect_url,
                 'metadata': json.dumps(metadata)
-            }):
-                self.db.log_audit_event(
-                    admin_username,
-                    'approve_user',
-                    {
-                        'message': f'User {user["username"]} (ID: {user_id}) approved by {admin_username}',
-                        'approved_user': user['username'],
-                        'server_assignment': server_assignment,
-                        'redirect_server': redirect_server,
-                        'container_created': container_result.get('success', False),
-                        'container_info': container_result.get('container', {})
-                    },
-                    ip_address
-                )
-                
+            })
+
+            self.db.log_audit_event(
+                admin_username,
+                'approve_user',
+                {
+                    'message': f'User {user["username"]} (ID: {user_id}) approved by {admin_username}',
+                    'approved_user': user['username'],
+                    'server_assignment': server_assignment,
+                    'redirect_server': redirect_server,
+                    'redirect_url': redirect_url,
+                    'container_created': container_result.get('success', False),
+                    'container_info': container_result.get('container', {})
+                },
+                ip_address
+            )
+            
+            if container_result.get('success'):
                 return {
                     'success': True,
                     'container_result': container_result,
                     'user_approved': True
                 }
-            return {'success': False, 'error': 'Failed to update user approval status'}
+            else:
+                return {'success': False, 'error': 'Failed to update user approval status'}
+            
         except Exception as e:
             logger.error(f"Error approving user {user_id}: {e}")
             return {'success': False, 'error': str(e)}
     
     def _create_user_container(self, username: str, server_ip: str, resources: Dict[str, str], agent_port: str) -> Dict[str, Any]:
-        """Create a Docker container for the approved user."""
         try:
-            # Parse resource specifications
             cpu_cores = self._parse_cpu_spec(resources.get('cpu', '2 cores'))
             memory_limit = self._parse_memory_spec(resources.get('ram', '4GB'))
             
-            # Prepare container creation request
             container_data = {
                 'user': username,
-                'session_token': 'admin_approval',  # Special token for admin-initiated container creation
+                'session_token': 'admin_approval',
                 'resources': {
                     'cpu_count': cpu_cores,
                     'memory_limit': memory_limit,
@@ -234,11 +238,12 @@ class UserService:
             container_api_url = f"http://{server_ip}:{agent_port}/api/containers/create"
             
             logger.info(f"Creating container for user {username} on server {server_ip}")
-            
+            # pass on authorization token
             response = requests.post(
                 container_api_url,
                 json=container_data,
-                timeout=30
+                timeout=30,
+                headers={'Authorization': f'Bearer {session_token}'}
             )
             
             if response.status_code == 200:
@@ -540,67 +545,7 @@ class UserService:
         except Exception as e:
             logger.error(f"Error creating user: {e}")
             return {'success': False, 'error': 'Failed to create user'}
-    
-    def approve_admin_user(self, user_id: int, approval_data: Dict[str, Any], 
-                          admin_username: str = "Admin", ip_address: Optional[str] = None) -> Dict[str, Any]: 
-        try:
-            server_assignment = approval_data.get('server', 'Server 1')
-            resources = approval_data.get('resources', {
-                'cpu': '4 cores',
-                'ram': '8GB', 
-                'gpu': '1 core, 12GB'
-            })
-            
-            # Get user info
-            user = self.db.get_user_by_id(user_id)
-            if not user:
-                return {'success': False, 'error': 'User not found'}
-            
-            # Parse existing metadata
-            metadata = self._parse_user_metadata(user.get('metadata'))
-            
-            # Update metadata with approval info
-            metadata.update({
-                'server_assignment': server_assignment,
-                'resources': resources,
-                'approved_by': admin_username,
-                'approved_at': datetime.now().isoformat()
-            })
-            
-            # Update user with approval and resource assignment
-            update_data = {
-                'is_approved': True,
-                'redirect_url': f"http://{server_assignment}:8510",
-                'metadata': json.dumps(metadata)
-            }
-            
-            if self.db.update_user(user_id, update_data):
-                # Log successful approval
-                self.db.log_audit_event(
-                    admin_username,
-                    'approve_admin_user',
-                    {
-                        'message': f'User {user["username"]} (ID: {user_id}) approved by {admin_username}',
-                        'approved_user': user['username'],
-                        'server_assignment': server_assignment,
-                        'resources': resources
-                    },
-                    ip_address
-                )
-                
-                return {
-                    'success': True,
-                    'message': f'User {user["username"]} approved successfully',
-                    'server_assignment': server_assignment,
-                    'redirect_url': update_data['redirect_url']
-                }
-            else:
-                return {'success': False, 'error': 'Failed to approve user'}
-                
-        except Exception as e:
-            logger.error(f"Error approving user {user_id}: {e}")
-            return {'success': False, 'error': 'Failed to approve user'}
-    
+
     def _delete_user_container(self, container_info: Dict[str, Any], user_id: int, 
                               server_assignment: Optional[str] = None) -> Dict[str, Any]:
         result = {

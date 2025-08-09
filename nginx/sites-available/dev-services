@@ -1,0 +1,115 @@
+# Upstream configuration for user-specific Jupyter servers with health checks
+# user1
+upstream jupyter_user1 {
+    server 192.168.1.10:8088 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone jupyter_user1 64k;
+    keepalive 32;
+}
+
+# user2
+upstream jupyter_user2 {
+    server 192.168.1.20:8089 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone jupyter_user2 64k;
+    keepalive 32;
+}
+
+# Server block for handling requests
+server {
+    listen 80;
+    server_name _;  # Catch-all server name
+
+    # User-specific VSCode routing with session persistence
+    location ~ ^/([^/]+)/vscode/(.*)$ {
+        set $user $1;
+        set $path $2;
+        
+        # Map users to their upstreams
+        if ($user = "user1") {
+            proxy_pass http://vscode_user1/$path$is_args$args;
+        }
+        if ($user = "testuser") {
+            proxy_pass http://vscode_testuser/$path$is_args$args;
+        }
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Session persistence using cookie
+        proxy_cookie_path / "/; secure; HttpOnly; SameSite=strict";
+        
+        # WebSocket support for VSCode
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # User-specific Jupyter routing with session persistence
+    location ~ ^/([^/]+)/jupyter/(.*)$ {
+        set $user $1;
+        set $path $2;
+        
+        # Map users to their upstreams
+        if ($user = "user1") {
+            proxy_pass http://jupyter_user1/$path$is_args$args;
+        }
+        if ($user = "testuser") {
+            proxy_pass http://jupyter_testuser/$path$is_args$args;
+        }
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Session persistence using cookie
+        proxy_cookie_path / "/; secure; HttpOnly; SameSite=strict";
+        
+        # WebSocket support for Jupyter
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+}
+
+# testuser
+upstream vscode_testuser {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone vscode_testuser 64k;
+    keepalive 32;
+}
+
+# testuser
+upstream jupyter_testuser {
+    server 127.0.0.1:8088 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone jupyter_testuser 64k;
+    keepalive 32;
+}

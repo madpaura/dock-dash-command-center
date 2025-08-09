@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  dev-environment:
+    build: .
+    ports:
+      - "8080:8080"  # VS Code Server
+      - "8888:8888"  # Jupyter Server
+    volumes:
+      - ./workspace:/home/developer/workspace
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    privileged: true

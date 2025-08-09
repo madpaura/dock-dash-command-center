@@ -1,0 +1,12 @@
+[Unit]
+Description=Enable Dev Services Nginx Site
+After=nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/vishwa/gpu/dock-dash-command-center/nginx/enable-site.sh
+User=root
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
