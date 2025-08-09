@@ -31,19 +31,15 @@ cp sites-available/dev-services /etc/nginx/sites-available/
 # Remove default site to prevent conflicts
 rm -f /etc/nginx/sites-enabled/default
 
-# Create symlink to enable site
-ln -sf sites-available/dev-services /etc/nginx/sites-enabled/dev-services
-
 # Copy systemd service files
 echo "Installing systemd services..."
-cp dev-services-enable-site.service /etc/systemd/system/
 cp dev-services-nginx.service /etc/systemd/system/
 
 # Reload systemd
 systemctl daemon-reload
 
 # Enable services
-systemctl enable dev-services-enable-site
+systemctl enable dev-services-nginx
 
 # Test nginx configuration
 echo "Testing Nginx configuration..."

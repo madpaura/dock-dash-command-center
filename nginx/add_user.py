@@ -119,12 +119,27 @@ upstream {service_type}_{username} {{
     def add_routing_rule(self, content: str, service_type: str, username: str) -> str:
         if service_type == "vscode":
             # Find the VSCode routing section and add new rule
-            pattern = r'(if \(\$user = "user2"\) \{\s*\n\s*proxy_pass http://vscode_user2/\$path\$is_args\$args;\s*\n\s*\})'
-            replacement = f'\\1\n        if ($user = "{username}") {{\n            proxy_pass http://vscode_{username}/$path$is_args$args;\n        }}'
+            # Look for the comment "# Map users to their upstreams" in VSCode section
+            pattern = r'(# Map users to their upstreams\s*\n\s*)'
+            replacement = f'\\1        if ($user = "{username}") {{\n            proxy_pass http://vscode_{username}/$path$is_args$args;\n        }}\n        \n'
         else:  # jupyter
             # Find the Jupyter routing section and add new rule
-            pattern = r'(proxy_pass http://jupyter_user2/\$path\$is_args\$args;)'
-            replacement = f'\\1\n        if ($user = "{username}") {{\n            proxy_pass http://jupyter_{username}/$path$is_args$args;\n        }}'
+            # Look for the comment "# Map users to their upstreams" in Jupyter section
+            # We need to find the second occurrence (Jupyter section)
+            lines = content.split('\n')
+            vscode_section_found = False
+            for i, line in enumerate(lines):
+                if '# Map users to their upstreams' in line:
+                    if vscode_section_found:
+                        # This is the Jupyter section
+                        lines.insert(i + 1, f'        if ($user = "{username}") {{')
+                        lines.insert(i + 2, f'            proxy_pass http://jupyter_{username}/$path$is_args$args;')
+                        lines.insert(i + 3, '        }')
+                        lines.insert(i + 4, '        ')
+                        return '\n'.join(lines)
+                    else:
+                        vscode_section_found = True
+            return content
         
         return re.sub(pattern, replacement, content, count=1)
     

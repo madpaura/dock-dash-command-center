@@ -55,7 +55,8 @@ def stop_dummy_services(process):
 
 def remove_test_user():
     """Remove testuser from nginx configuration if it exists"""
-    manager = NginxUserManager()
+    config_path = "../sites-available/dev-services"
+    manager = NginxUserManager(config_path)
     
     try:
         if manager.check_user_exists("testuser"):
@@ -75,7 +76,7 @@ def add_test_user():
     # First remove existing testuser if present
     remove_test_user()
     
-    command = "python3 ../add_user.py testuser 127.0.0.1:8080 127.0.0.1:8088"
+    command = "python3 ../add_user.py --config ../sites-available/dev-services testuser 127.0.0.1:8080 127.0.0.1:8088"
     success, output = run_command(command, "Add test user")
     return success
 
@@ -271,7 +272,7 @@ def test_user_management_features():
     print("Testing user management features...")
     
     # Test list users functionality
-    command = "python3 ./add_user.py --list"
+    command = "python3 ../add_user.py --config ../sites-available/dev-services --list"
     success, output = run_command(command, "List users")
     
     if success and "testuser" in output:
@@ -281,7 +282,7 @@ def test_user_management_features():
         return False
     
     # Test validation (should fail with invalid input)
-    command = "python3 ./add_user.py invalid@user 192.168.1.10:8080 192.168.1.10:8088"
+    command = "python3 ../add_user.py --config ../sites-available/dev-services invalid@user 192.168.1.10:8080 192.168.1.10:8088"
     success, output = run_command(command, "Test validation (should fail)")
     
     if not success:  # Should fail due to invalid username
