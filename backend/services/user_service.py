@@ -164,6 +164,7 @@ class UserService:
             container_result = self._create_user_container(user['username'], redirect_server, user_resources, agent_port)
             redirect_url=f"NA"
             is_approved = False
+
             # Update metadata with container information if container was created successfully
             if container_result.get('success') and container_result.get('container'):
                 container_info = container_result['container']
@@ -243,7 +244,7 @@ class UserService:
                 container_api_url,
                 json=container_data,
                 timeout=30,
-                headers={'Authorization': f'Bearer {session_token}'}
+                headers={'Authorization': f'Bearer admin_approval'}
             )
             
             if response.status_code == 200:

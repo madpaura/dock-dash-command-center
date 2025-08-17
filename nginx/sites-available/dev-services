@@ -1,61 +1,167 @@
-# Upstream configuration for user-specific Jupyter servers with health checks
+# Multi-user code-server configuration
+# Each user gets their own code-server instance on different ports
 
+# Default code-server (fallback)
+upstream code_server_default {
+    server 127.0.0.1:8080;
+    keepalive 32;
+}
 
 # Server block for handling requests
 server {
     listen 80;
-    server_name _;  # Catch-all server name
+    listen [::]:80;
+    server_name localhost;  # Use localhost for local development
 
-    # User-specific VSCode routing with session persistence
-    location ~ ^/([^/]+)/vscode/(.*)$ {
-        set $user $1;
-        set $path $2;
-        
-        # Map users to their upstreams
-        
-proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # Session persistence using cookie
-        proxy_cookie_path / "/; secure; HttpOnly; SameSite=strict";
-        
-        # WebSocket support for VSCode
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-
-    # User-specific Jupyter routing with session persistence
-    location ~ ^/([^/]+)/jupyter/(.*)$ {
-        set $user $1;
-        set $path $2;
-        
-        # Map users to their upstreams
-        
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # Session persistence using cookie
-        proxy_cookie_path / "/; secure; HttpOnly; SameSite=strict";
-        
-        # WebSocket support for Jupyter
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+    # User-specific code-server routing
+    # Pattern: /user/{username}/vscode/ -> user's code-server instance
+    # Pattern: /user/{username}/jupyter/ -> user's jupyter instance
+    
+    # Default root redirects to user selection or default instance
+    location = / {
+        return 302 /user/default/vscode/;
     }
     
+    # User routing pattern for VSCode
+    location ~ ^/user/([^/]+)/vscode/(.*)$ {
+        set $username $1;
+        set $path $2;
+        
+        # Try to proxy to user-specific upstream, fallback to default
+        proxy_pass http://vscode_$username/$path$is_args$args;
+        
+        # Standard proxy headers
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support (essential for code-server)
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_set_header Accept-Encoding gzip;
+        
+        # Disable buffering for real-time communication
+        proxy_buffering off;
+        proxy_request_buffering off;
+        
+        # Increase timeouts for long-running operations
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # Handle large file uploads
+        client_max_body_size 100M;
+        
+        # Add user context headers
+        proxy_set_header X-User $username;
+        proxy_set_header X-Service "vscode";
+    }
+    
+    # User routing pattern for Jupyter
+    location ~ ^/user/([^/]+)/jupyter/(.*)$ {
+        set $username $1;
+        set $path $2;
+        
+        # Proxy to user-specific jupyter upstream
+        proxy_pass http://jupyter_$username/$path$is_args$args;
+        
+        # Standard proxy headers
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support for Jupyter
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_set_header Accept-Encoding gzip;
+        
+        # Jupyter-specific headers
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Script-Name /user/$username/jupyter;
+        
+        # Disable buffering
+        proxy_buffering off;
+        proxy_request_buffering off;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # Large uploads
+        client_max_body_size 100M;
+        
+        # Add user context headers
+        proxy_set_header X-User $username;
+        proxy_set_header X-Service "jupyter";
+    }
+    
+    # Default VSCode fallback (for /vscode/ without user prefix)
+    location /vscode/ {
+        proxy_pass http://code_server_default/;
+        
+        # Standard code-server proxy configuration
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_set_header Accept-Encoding gzip;
+        
+        # Disable buffering
+        proxy_buffering off;
+        proxy_request_buffering off;
+        
+        # Timeouts and uploads
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        client_max_body_size 100M;
+    }
+    
+    # Health check endpoint
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+    
+    # Status endpoint for monitoring
+    location /status {
+        access_log off;
+        return 200 '{"status":"ok","service":"nginx-multi-user"}';
+        add_header Content-Type application/json;
+    }
+}
+
+# Default user upstream (maps to existing code-server)
+upstream vscode_default {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    least_conn;
+    keepalive 32;
+}
+
+# User1 VSCode upstream
+upstream vscode_user1 {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    least_conn;
+    keepalive 32;
+}
+
+upstream vscode_user2 {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    least_conn;
+    keepalive 32;
+}
+
+# User1 Jupyter upstream
+upstream jupyter_user1 {
+    server 192.168.68.106:8088 max_fails=3 fail_timeout=30s;
+    least_conn;
+    keepalive 32;
 }
