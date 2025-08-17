@@ -54,15 +54,6 @@ export const UserDashboard: React.FC = () => {
 
   const applications: Application[] = [
     {
-      id: 'vscode-desktop',
-      name: 'VS Code Desktop',
-      icon: VSCodeIcon,
-      status: 'running',
-      port: 8080,
-      url: '/vscode',
-      description: 'Visual Studio Code Desktop Environment'
-    },
-    {
       id: 'code-server',
       name: 'code-server',
       icon: VSCodeIcon,
@@ -134,8 +125,7 @@ export const UserDashboard: React.FC = () => {
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span className="text-lg font-medium">main</span>
-          <span className="text-green-400">526ms</span>
+          <span className="text-lg font-medium">Dashboard</span>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-muted-foreground">Connect via SSH</span>
