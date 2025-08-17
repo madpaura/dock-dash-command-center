@@ -3,6 +3,7 @@ import { Monitor, Terminal, Cpu, HardDrive, MemoryStick, Activity, ExternalLink 
 import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
+import { ProgressBar } from '../components/ui/progress-bar';
 
 interface SystemStats {
   cpu: {
@@ -41,13 +42,13 @@ export const UserDashboard: React.FC = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState<SystemStats>({
     cpu: { usage: 0.418, cores: 12 },
-    memory: { used: 0.186, total: 32, percentage: 0.6 },
+    memory: { used: 0.186, total: 32, percentage: 60 },
     disk: { used: 229, total: 467, percentage: 49 },
     host: {
       cpuUsage: 19,
       memoryUsage: 70,
       loadAverage: 0.31,
-      swapUsage: 0.7
+      swapUsage: 17.5
     }
   });
 
@@ -174,32 +175,56 @@ export const UserDashboard: React.FC = () => {
           <h3 className="text-lg font-semibold text-foreground mb-3">Container Resources</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <Cpu className="w-4 h-4 text-blue-500" />
                 <span className="text-xs text-muted-foreground">CPU Usage</span>
               </div>
-              <div className="text-green-500 font-mono text-sm">
-                {stats.cpu.usage} cores
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{stats.cpu.usage} cores</span>
+                  <span className="text-xs text-muted-foreground">{((stats.cpu.usage / stats.cpu.cores) * 100).toFixed(1)}%</span>
+                </div>
+                <ProgressBar 
+                  value={stats.cpu.usage} 
+                  max={stats.cpu.cores} 
+                  size="md"
+                />
               </div>
             </div>
 
             <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <MemoryStick className="w-4 h-4 text-purple-500" />
                 <span className="text-xs text-muted-foreground">RAM Usage</span>
               </div>
-              <div className="text-green-500 font-mono text-sm">
-                {stats.memory.used} GiB
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{stats.memory.used}/{stats.memory.total} GiB</span>
+                  <span className="text-xs text-muted-foreground">{stats.memory.percentage.toFixed(1)}%</span>
+                </div>
+                <ProgressBar 
+                  value={stats.memory.percentage} 
+                  max={100} 
+                  size="md"
+                />
               </div>
             </div>
 
             <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <HardDrive className="w-4 h-4 text-yellow-500" />
                 <span className="text-xs text-muted-foreground">Home Disk</span>
               </div>
-              <div className="text-green-500 font-mono text-sm">
-                {stats.disk.used}/{stats.disk.total} GiB ({stats.disk.percentage}%)
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{stats.disk.used}/{stats.disk.total} GiB</span>
+                  <span className="text-xs text-muted-foreground">{stats.disk.percentage}%</span>
+                </div>
+                <ProgressBar 
+                  value={stats.disk.percentage} 
+                  max={100} 
+                  size="md"
+                />
               </div>
             </div>
           </div>
@@ -210,42 +235,76 @@ export const UserDashboard: React.FC = () => {
           <h3 className="text-lg font-semibold text-foreground mb-3">Host Resources</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <Cpu className="w-4 h-4 text-red-500" />
                 <span className="text-xs text-muted-foreground">CPU Usage</span>
               </div>
-              <div className="text-green-500 font-mono text-sm">
-                {stats.cpu.cores}/12 cores ({stats.host.cpuUsage}%)
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{stats.cpu.cores}/12 cores</span>
+                  <span className="text-xs text-muted-foreground">{stats.host.cpuUsage}%</span>
+                </div>
+                <ProgressBar 
+                  value={stats.host.cpuUsage} 
+                  max={100} 
+                  size="md"
+                />
               </div>
             </div>
 
             <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <MemoryStick className="w-4 h-4 text-blue-500" />
                 <span className="text-xs text-muted-foreground">Memory Usage</span>
               </div>
-              <div className="text-green-500 font-mono text-sm">
-                10.7/15.3 GiB ({stats.host.memoryUsage}%)
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">10.7/15.3 GiB</span>
+                  <span className="text-xs text-muted-foreground">{stats.host.memoryUsage}%</span>
+                </div>
+                <ProgressBar 
+                  value={stats.host.memoryUsage} 
+                  max={100} 
+                  size="md"
+                />
               </div>
             </div>
 
             <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <Activity className="w-4 h-4 text-green-500" />
                 <span className="text-xs text-muted-foreground">Load Average</span>
               </div>
-              <div className="text-green-500 font-mono text-sm">
-                {stats.host.loadAverage}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{stats.host.loadAverage}</span>
+                  <span className="text-xs text-muted-foreground">{((stats.host.loadAverage / stats.cpu.cores) * 100).toFixed(1)}%</span>
+                </div>
+                <ProgressBar 
+                  value={stats.host.loadAverage} 
+                  max={stats.cpu.cores} 
+                  size="md"
+                  color="success"
+                />
               </div>
             </div>
 
             <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <HardDrive className="w-4 h-4 text-orange-500" />
                 <span className="text-xs text-muted-foreground">Swap Usage</span>
               </div>
-              <div className="text-green-500 font-mono text-sm">
-                {stats.host.swapUsage}/4.0
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{stats.host.swapUsage}%</span>
+                  <span className="text-xs text-muted-foreground">0.7/4.0 GiB</span>
+                </div>
+                <ProgressBar 
+                  value={stats.host.swapUsage} 
+                  max={100} 
+                  size="md"
+                  color="warning"
+                />
               </div>
             </div>
           </div>
