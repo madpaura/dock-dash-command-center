@@ -13,7 +13,6 @@ import { useSidebar } from '../hooks/useSidebar';
 
 const navItems = [
   { path: '/user', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { path: '/user/containers', label: 'My Services', icon: Container },
   { path: '/user/files', label: 'File Manager', icon: FolderOpen },
 ];
 
