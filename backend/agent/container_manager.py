@@ -431,6 +431,8 @@ def init_backend_routes(app):
             "TZ": "Etc/UTC",
             "DEFAULT_WORKSPACE": os.getenv("DEFAULT_WORKSPACE", "/config/workspace"),
             "SUDO_PASSWORD": os.getenv("SUDO_PASSWORD", "abc"),
+            # Fix Jupyter subpath routing - set base path for nginx reverse proxy
+            "JUPYTERHUB_SERVICE_PREFIX": f"/user/{user}/jupyter/",
         }
 
         docker_image_name = os.getenv("DOCKER_IMAGE", "gpu-dev-environment")
