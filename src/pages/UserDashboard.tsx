@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
 import { ProgressBar } from '../components/ui/progress-bar';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../components/ui/tooltip';
+import { userServicesApi, UserServicesData } from '../lib/api';
 
 interface SystemStats {
   cpu: {
@@ -52,41 +54,101 @@ export const UserDashboard: React.FC = () => {
     }
   });
 
+  const [userServices, setUserServices] = useState<UserServicesData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch user services data on component mount
+  useEffect(() => {
+    const fetchUserServices = async () => {
+      if (!user?.token) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await userServicesApi.getUserServices(user.token);
+        
+        if (response.success && response.data) {
+          const userData = response.data.data;
+          setUserServices(userData);
+          
+          // Update stats with real server data if available
+          if (userData.server_stats) {
+            const serverStats = userData.server_stats;
+            setStats(prev => ({
+              ...prev,
+              cpu: {
+                usage: serverStats.cpu_usage || prev.cpu.usage,
+                cores: serverStats.cpu_cores || prev.cpu.cores
+              },
+              memory: {
+                used: serverStats.memory_used_gb || prev.memory.used,
+                total: serverStats.memory_total_gb || prev.memory.total,
+                percentage: serverStats.memory_usage || prev.memory.percentage
+              },
+              disk: {
+                used: serverStats.disk_used_gb || prev.disk.used,
+                total: serverStats.disk_total_gb || prev.disk.total,
+                percentage: serverStats.disk_usage || prev.disk.percentage
+              },
+              host: {
+                cpuUsage: serverStats.cpu_usage || prev.host.cpuUsage,
+                memoryUsage: serverStats.memory_usage || prev.host.memoryUsage,
+                loadAverage: serverStats.load_average || prev.host.loadAverage,
+                swapUsage: serverStats.swap_usage || prev.host.swapUsage
+              }
+            }));
+          }
+        } else {
+          setError(response.error || 'Failed to fetch user services');
+        }
+      } catch (err) {
+        setError('Failed to fetch user services');
+        console.error('Error fetching user services:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserServices();
+  }, [user?.token]);
+
+  // Build applications array from backend data
   const applications: Application[] = [
     {
       id: 'code-server',
       name: 'code-server',
       icon: VSCodeIcon,
-      status: 'running',
+      status: userServices?.services?.vscode?.available ? userServices.services.vscode.status : 'stopped',
       port: 8081,
-      url: '/code-server',
+      url: userServices?.services?.vscode?.url || undefined,
       description: 'VS Code in the browser'
     },
     {
       id: 'jupyter',
       name: 'Jupyter Notebook',
       icon: JupyterIcon,
-      status: 'running',
+      status: userServices?.services?.jupyter?.available ? userServices.services.jupyter.status : 'stopped',
       port: 8888,
-      url: '/jupyter',
+      url: userServices?.services?.jupyter?.url || undefined,
       description: 'Python data science environment'
     },
     {
       id: 'intellij',
       name: 'IntelliJ IDEA Ultimate',
       icon: Monitor,
-      status: 'stopped',
+      status: userServices?.services?.intellij?.available ? userServices.services.intellij.status : 'stopped',
       port: 8082,
-      url: '/intellij',
+      url: userServices?.services?.intellij?.url || undefined,
       description: 'IntelliJ IDEA Ultimate IDE'
     },
     {
       id: 'terminal',
       name: 'Terminal',
       icon: Terminal,
-      status: 'running',
+      status: userServices?.services?.terminal?.available ? userServices.services.terminal.status : 'stopped',
       port: 8083,
-      url: '/terminal',
+      url: userServices?.services?.terminal?.url || undefined,
       description: 'Web-based terminal access'
     }
   ];
@@ -94,6 +156,56 @@ export const UserDashboard: React.FC = () => {
   const handleApplicationClick = (app: Application) => {
     if (app.status === 'running' && app.url) {
       window.open(app.url, '_blank');
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!user?.token) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await userServicesApi.getUserServices(user.token);
+      
+      if (response.success && response.data) {
+        const userData = response.data.data;
+        setUserServices(userData);
+        
+        // Update stats with real server data if available
+        if (userData.server_stats) {
+          const serverStats = userData.server_stats;
+          setStats(prev => ({
+            ...prev,
+            cpu: {
+              usage: serverStats.cpu_usage || prev.cpu.usage,
+              cores: serverStats.cpu_cores || prev.cpu.cores
+            },
+            memory: {
+              used: serverStats.memory_used_gb || prev.memory.used,
+              total: serverStats.memory_total_gb || prev.memory.total,
+              percentage: serverStats.memory_usage || prev.memory.percentage
+            },
+            disk: {
+              used: serverStats.disk_used_gb || prev.disk.used,
+              total: serverStats.disk_total_gb || prev.disk.total,
+              percentage: serverStats.disk_usage || prev.disk.percentage
+            },
+            host: {
+              cpuUsage: serverStats.cpu_usage || prev.host.cpuUsage,
+              memoryUsage: serverStats.memory_usage || prev.host.memoryUsage,
+              loadAverage: serverStats.load_average || prev.host.loadAverage,
+              swapUsage: serverStats.swap_usage || prev.host.swapUsage
+            }
+          }));
+        }
+      } else {
+        setError(response.error || 'Failed to fetch user services');
+      }
+    } catch (err) {
+      setError('Failed to fetch user services');
+      console.error('Error fetching user services:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,38 +236,91 @@ export const UserDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+          <div className={`w-3 h-3 rounded-full ${userServices?.container?.status === 'running' ? 'bg-green-500' : 'bg-red-500'}`}></div>
           <span className="text-lg font-medium">Dashboard</span>
+          {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-muted-foreground">Connect via SSH</span>
-          <button className="text-muted-foreground hover:text-foreground">
+          {error && (
+            <button 
+              onClick={handleRefresh}
+              className="text-xs text-red-500 hover:text-red-400"
+            >
+              Retry
+            </button>
+          )}
+          <span className="text-muted-foreground">
+            {userServices?.container?.server && userServices.container.server !== 'NA' ? `Server: ${userServices.container.server}` : 'No server assigned'}
+          </span>
+          <button 
+            onClick={handleRefresh}
+            className="text-muted-foreground hover:text-foreground"
+            disabled={loading}
+          >
             <ExternalLink className="w-4 h-4" />
           </button>
         </div>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
+            <button 
+              onClick={handleRefresh}
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 text-xs"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Applications Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {applications.map((app) => (
-          <div
-            key={app.id}
-            onClick={() => handleApplicationClick(app)}
-            className={`
-              relative bg-card rounded-lg p-4 border border-border transition-all duration-200
-              ${app.status === 'running' ? 'hover:bg-accent cursor-pointer' : 'opacity-60 cursor-not-allowed'}
-            `}
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-primary rounded">
-                <app.icon className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div className={`w-2 h-2 rounded-full ${getStatusColor(app.status)}`}></div>
-            </div>
-            <h3 className="font-medium text-sm mb-1">{app.name}</h3>
-            <p className="text-xs text-muted-foreground">{app.description}</p>
-          </div>
-        ))}
+        {applications.map((app) => {
+          const isAvailable = app.status === 'running' && app.url;
+          const isLoading = loading && !userServices;
+          
+          return (
+            <TooltipProvider delayDuration={200} key={app.id}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    onClick={() => !isLoading && handleApplicationClick(app)}
+                    className={`
+                      relative bg-card rounded-lg p-4 border border-border transition-all duration-200
+                      ${isAvailable ? 'hover:bg-accent cursor-pointer' : 'opacity-60 cursor-not-allowed'}
+                      ${isLoading ? 'animate-pulse' : ''}
+                    `}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className={`p-2 rounded ${isAvailable ? 'bg-primary' : 'bg-gray-400'}`}>
+                        <app.icon className={`w-5 h-5 ${isAvailable ? 'text-primary-foreground' : 'text-gray-600'}`} />
+                      </div>
+                      <div className={`w-2 h-2 rounded-full ${getStatusColor(app.status)}`}></div>
+                    </div>
+                    <h3 className="font-medium text-sm mb-1">{app.name}</h3>
+                    <p className="text-xs text-muted-foreground">{app.description}</p>
+                    {!isAvailable && !isLoading && (
+                      <div className="absolute inset-0 bg-gray-900/20 rounded-lg flex items-center justify-center">
+                        <span className="text-xs text-gray-500 font-medium">
+                          {userServices?.container?.status === 'running' ? 'Service Unavailable' : 'Container Stopped'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <span className="font-mono text-xs">
+                    {isAvailable ? app.url : 'URL unavailable'}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        })}
       </div>
 
       {/* System Statistics */}

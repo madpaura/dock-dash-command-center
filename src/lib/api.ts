@@ -702,6 +702,46 @@ export interface DashboardContainer {
 }
 
 /**
+ * User services interfaces
+ */
+export interface UserService {
+  available: boolean;
+  url: string | null;
+  status: 'running' | 'stopped' | 'starting';
+}
+
+export interface UserServicesData {
+  username: string;
+  services: {
+    vscode: UserService;
+    jupyter: UserService;
+    intellij: UserService;
+    terminal: UserService;
+  };
+  container: {
+    name: string;
+    status: string;
+    server: string;
+  };
+  server_stats: any;
+  nginx_available: boolean;
+}
+
+/**
+ * User API calls
+ */
+export const userServicesApi = {
+  async getUserServices(token: string): Promise<ApiResponse<{data: UserServicesData}>> {
+    return fetchApi('/user/services', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+};
+
+/**
  * Dashboard API calls
  */
 export const dashboardApi = {

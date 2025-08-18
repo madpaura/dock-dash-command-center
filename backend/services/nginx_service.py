@@ -206,8 +206,8 @@ class NginxService:
             if self.check_user_exists(username):
                 result['success'] = True
                 result['has_routes'] = True
-                result['vscode_url'] = f"/{username}/vscode/"
-                result['jupyter_url'] = f"/{username}/jupyter/"
+                result['vscode_url'] = f"/user/{username}/vscode/"
+                result['jupyter_url'] = f"/user/{username}/jupyter/"
                 result['message'] = f'User {username} has nginx routes configured'
             else:
                 result['success'] = True

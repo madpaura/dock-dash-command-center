@@ -50,6 +50,10 @@ docker_service = DockerService(db, agent_service)
 audit_service = AuditService(db)
 cleanup_service = CleanupService(db)
 
+# Import nginx service
+from services.nginx_service import NginxService
+nginx_service = NginxService()
+
 
 # Authentication endpoints
 @app.route('/api/login', methods=['POST'])
@@ -731,6 +735,120 @@ def unregister_agent():
     except Exception as e:
         logger.error(f"Error unregistering agent: {e}")
         return jsonify({'success': False, 'error': 'Failed to unregister agent'}), 500
+
+
+@app.route('/api/user/services', methods=['GET'])
+def get_user_services():
+    # Check session authentication
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
+    
+    username = session.get('username')
+    
+    try:
+        # Get user's nginx route information
+        route_info = nginx_service.get_user_routes_info(username)
+        logger.error(f"Route info: {route_info}")
+
+        # Get user data for container and server information
+        user_data = db.get_user_by_username(username)
+        if not user_data:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Parse user metadata for container and server info
+        metadata = user_service._parse_user_metadata(user_data.get('metadata'))
+        logger.error(f"Metadata: {metadata}")
+        # Build service URLs based on nginx routes and container status
+        services = {
+            'vscode': {
+                'available': False,
+                'url': None,
+                'status': 'stopped'
+            },
+            'jupyter': {
+                'available': False,
+                'url': None,
+                'status': 'stopped'
+            },
+            'intellij': {
+                'available': False,
+                'url': None,
+                'status': 'stopped'
+            },
+            'terminal': {
+                'available': False,
+                'url': None,
+                'status': 'stopped'
+            }
+        }
+        
+        # If user has nginx routes configured and container exists
+        if route_info.get('has_routes') and metadata.get('container'):
+            container_info = metadata['container']
+            container_status = container_info.get('status', 'unknown')
+            
+            # Only enable services if container is running
+            if container_status == 'created':
+                if route_info.get('vscode_url'):
+                    services['vscode'] = {
+                        'available': True,
+                        'url': f"http://localhost{route_info['vscode_url']}",
+                        'status': 'running'
+                    }
+                
+                if route_info.get('jupyter_url'):
+                    services['jupyter'] = {
+                        'available': True,
+                        'url': f"http://localhost{route_info['jupyter_url']}",
+                        'status': 'running'
+                    }
+                
+                # For now, IntelliJ and Terminal use same base URL pattern
+                # These can be extended when those services are implemented
+                services['intellij'] = {
+                    'available': True,
+                    'url': f"http://localhost/user/{username}/intellij/",
+                    'status': 'running'
+                }
+                
+                services['terminal'] = {
+                    'available': True,
+                    'url': f"http://localhost/user/{username}/terminal/",
+                    'status': 'running' 
+                }
+        
+        # Get server information for system stats
+        server_assignment = metadata.get('server_assignment')
+        server_stats = None
+        
+        if server_assignment and server_assignment != 'NA':
+            try:
+                # Try to get server stats from agent
+                server_ip = user_service._get_server_ip_from_assignment(server_assignment)
+                if server_ip:
+                    server_stats = agent_service.query_agent_resources(server_ip)
+            except Exception as e:
+                logger.debug(f"Could not fetch server stats for user {username}: {e}")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'username': username,
+                'services': services,
+                'container': {
+                    'name': metadata.get('container', {}).get('name', 'NA'),
+                    'status': 'running' if metadata.get('container', {}).get('status', 'unknown') == 'created' else 'NA',
+                    'server': server_assignment or 'NA'
+                },
+                'server_stats': server_stats,
+                'nginx_available': route_info.get('nginx_available', False)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting user services for {username}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch user services'}), 500
 
 
 if __name__ == '__main__':
