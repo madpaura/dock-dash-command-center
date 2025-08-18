@@ -727,6 +727,7 @@ export interface UserServicesData {
   nginx_available: boolean;
 }
 
+
 /**
  * User API calls
  */
@@ -739,6 +740,7 @@ export const userServicesApi = {
       },
     });
   },
+
 };
 
 /**

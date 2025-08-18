@@ -827,7 +827,7 @@ def get_user_services():
                 # Try to get server stats from agent
                 server_ip = user_service._get_server_ip_from_assignment(server_assignment)
                 if server_ip:
-                    server_stats = agent_service.query_agent_resources(server_ip)
+                    server_stats = agent_service.query_agent_resources(server_ip, agent_port=8511)
             except Exception as e:
                 logger.debug(f"Could not fetch server stats for user {username}: {e}")
         
@@ -849,7 +849,6 @@ def get_user_services():
     except Exception as e:
         logger.error(f"Error getting user services for {username}: {e}")
         return jsonify({'success': False, 'error': 'Failed to fetch user services'}), 500
-
 
 if __name__ == '__main__':
     config_path = os.path.join('.streamlit', 'config.toml')

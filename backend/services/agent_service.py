@@ -15,7 +15,7 @@ class AgentService:
     def __init__(self, default_port: int = 5000, default_timeout: int = 5):
         self.default_port = default_port
         self.default_timeout = default_timeout
-    
+
     def query_agent_resources(self, agent_ip: str, agent_port: int = None, timeout: int = None) -> Optional[Dict[str, Any]]:
         if agent_port is None:
             agent_port = self.default_port
@@ -30,6 +30,7 @@ class AgentService:
             # Use shorter timeout for faster failure detection
             response = requests.get(url, timeout=timeout)
             if response.status_code == 200:
+                logger.debug(f"Successfully queried resources from agent {agent_ip}:{agent_port}, response: {response.json()}")
                 return response.json()
             else:
                 logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")

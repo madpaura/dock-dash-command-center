@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Terminal, Cpu, HardDrive, MemoryStick, Activity, ExternalLink } from 'lucide-react';
+import { Monitor, Terminal, Cpu, HardDrive, MemoryStick, Activity, ExternalLink, RefreshCw } from 'lucide-react'; 
 import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
@@ -43,14 +43,14 @@ interface Application {
 export const UserDashboard: React.FC = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState<SystemStats>({
-    cpu: { usage: 0.418, cores: 12 },
-    memory: { used: 0.186, total: 32, percentage: 60 },
-    disk: { used: 229, total: 467, percentage: 49 },
+    cpu: { usage: 0, cores: 0 },
+    memory: { used: 0, total: 0, percentage: 0 },
+    disk: { used: 0, total: 0, percentage: 0 },
     host: {
-      cpuUsage: 19,
-      memoryUsage: 70,
-      loadAverage: 0.31,
-      swapUsage: 17.5
+      cpuUsage: 0,
+      memoryUsage: 0,
+      loadAverage: 0,
+      swapUsage: 0
     }
   });
 
@@ -75,29 +75,31 @@ export const UserDashboard: React.FC = () => {
           // Update stats with real server data if available
           if (userData.server_stats) {
             const serverStats = userData.server_stats;
-            setStats(prev => ({
-              ...prev,
+            setStats({
               cpu: {
-                usage: serverStats.cpu_usage || prev.cpu.usage,
-                cores: serverStats.cpu_cores || prev.cpu.cores
+                usage: serverStats.allocated_cpu || 0,
+                cores: serverStats.cpu_count || 0
               },
               memory: {
-                used: serverStats.memory_used_gb || prev.memory.used,
-                total: serverStats.memory_total_gb || prev.memory.total,
-                percentage: serverStats.memory_usage || prev.memory.percentage
+                used: serverStats.allocated_memory || 0,
+                total: serverStats.total_memory || 0,
+                percentage: serverStats.total_memory > 0 ? 
+                  (serverStats.host_memory_used / serverStats.total_memory) * 100 : 0
               },
               disk: {
-                used: serverStats.disk_used_gb || prev.disk.used,
-                total: serverStats.disk_total_gb || prev.disk.total,
-                percentage: serverStats.disk_usage || prev.disk.percentage
+                used: serverStats.used_disk || 0,
+                total: serverStats.total_disk || 0,
+                percentage: serverStats.total_disk > 0 ? 
+                  (serverStats.used_disk / serverStats.total_disk) * 100 : 0
               },
               host: {
-                cpuUsage: serverStats.cpu_usage || prev.host.cpuUsage,
-                memoryUsage: serverStats.memory_usage || prev.host.memoryUsage,
-                loadAverage: serverStats.load_average || prev.host.loadAverage,
-                swapUsage: serverStats.swap_usage || prev.host.swapUsage
+                cpuUsage: serverStats.host_cpu_used || 0,
+                memoryUsage: serverStats.total_memory > 0 ? 
+                  (serverStats.host_memory_used / serverStats.total_memory) * 100 : 0,
+                loadAverage: 0, // Not available in current server_stats
+                swapUsage: 0 // Not available in current server_stats
               }
-            }));
+            });
           }
         } else {
           setError(response.error || 'Failed to fetch user services');
@@ -174,29 +176,31 @@ export const UserDashboard: React.FC = () => {
         // Update stats with real server data if available
         if (userData.server_stats) {
           const serverStats = userData.server_stats;
-          setStats(prev => ({
-            ...prev,
+          setStats({
             cpu: {
-              usage: serverStats.cpu_usage || prev.cpu.usage,
-              cores: serverStats.cpu_cores || prev.cpu.cores
+              usage: serverStats.allocated_cpu || 0,
+              cores: serverStats.cpu_count || 0
             },
             memory: {
-              used: serverStats.memory_used_gb || prev.memory.used,
-              total: serverStats.memory_total_gb || prev.memory.total,
-              percentage: serverStats.memory_usage || prev.memory.percentage
+              used: serverStats.allocated_memory || 0,
+              total: serverStats.total_memory || 0,
+              percentage: serverStats.total_memory > 0 ? 
+                (serverStats.host_memory_used / serverStats.total_memory) * 100 : 0
             },
             disk: {
-              used: serverStats.disk_used_gb || prev.disk.used,
-              total: serverStats.disk_total_gb || prev.disk.total,
-              percentage: serverStats.disk_usage || prev.disk.percentage
+              used: serverStats.used_disk || 0,
+              total: serverStats.total_disk || 0,
+              percentage: serverStats.total_disk > 0 ? 
+                (serverStats.used_disk / serverStats.total_disk) * 100 : 0
             },
             host: {
-              cpuUsage: serverStats.cpu_usage || prev.host.cpuUsage,
-              memoryUsage: serverStats.memory_usage || prev.host.memoryUsage,
-              loadAverage: serverStats.load_average || prev.host.loadAverage,
-              swapUsage: serverStats.swap_usage || prev.host.swapUsage
+              cpuUsage: serverStats.host_cpu_used || 0,
+              memoryUsage: serverStats.total_memory > 0 ? 
+                (serverStats.host_memory_used / serverStats.total_memory) * 100 : 0,
+              loadAverage: 0, // Not available in current server_stats
+              swapUsage: 0 // Not available in current server_stats
             }
-          }));
+          });
         }
       } else {
         setError(response.error || 'Failed to fetch user services');
@@ -257,7 +261,7 @@ export const UserDashboard: React.FC = () => {
             className="text-muted-foreground hover:text-foreground"
             disabled={loading}
           >
-            <ExternalLink className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -373,7 +377,7 @@ export const UserDashboard: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">{stats.disk.used}/{stats.disk.total} GiB</span>
-                  <span className="text-xs text-muted-foreground">{stats.disk.percentage}%</span>
+                  <span className="text-xs text-muted-foreground">{stats.disk.percentage.toFixed(1)}%</span>
                 </div>
                 <ProgressBar 
                   value={stats.disk.percentage} 
@@ -415,7 +419,7 @@ export const UserDashboard: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">10.7/15.3 GiB</span>
-                  <span className="text-xs text-muted-foreground">{stats.host.memoryUsage}%</span>
+                  <span className="text-xs text-muted-foreground">{stats.host.memoryUsage.toFixed(1)}%</span>
                 </div>
                 <ProgressBar 
                   value={stats.host.memoryUsage} 
@@ -428,16 +432,16 @@ export const UserDashboard: React.FC = () => {
             <div className="bg-card rounded-lg p-4 border border-border">
               <div className="flex items-center gap-2 mb-3">
                 <Activity className="w-4 h-4 text-green-500" />
-                <span className="text-xs text-muted-foreground">Load Average</span>
+                <span className="text-xs text-muted-foreground">Remaining CPU</span>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{stats.host.loadAverage}</span>
-                  <span className="text-xs text-muted-foreground">{((stats.host.loadAverage / stats.cpu.cores) * 100).toFixed(1)}%</span>
+                  <span className="text-sm font-medium">{userServices?.server_stats?.remaining_cpu || 0} cores</span>
+                  <span className="text-xs text-muted-foreground">{userServices?.server_stats?.cpu_count || 0} total</span>
                 </div>
                 <ProgressBar 
-                  value={stats.host.loadAverage} 
-                  max={stats.cpu.cores} 
+                  value={userServices?.server_stats?.remaining_cpu || 0} 
+                  max={userServices?.server_stats?.cpu_count || 1} 
                   size="md"
                   color="success"
                 />
@@ -451,12 +455,12 @@ export const UserDashboard: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{stats.host.swapUsage}%</span>
-                  <span className="text-xs text-muted-foreground">0.7/4.0 GiB</span>
+                  <span className="text-sm font-medium">{userServices?.server_stats?.remaining_memory || 0} GB</span>
+                  <span className="text-xs text-muted-foreground">{userServices?.server_stats?.total_memory || 0} GB total</span>
                 </div>
                 <ProgressBar 
-                  value={stats.host.swapUsage} 
-                  max={100} 
+                  value={userServices?.server_stats?.remaining_memory || 0} 
+                  max={userServices?.server_stats?.total_memory || 1} 
                   size="md"
                   color="warning"
                 />
@@ -468,16 +472,16 @@ export const UserDashboard: React.FC = () => {
 
       {/* Logs Section */}
       <div className="bg-card rounded-lg border border-border">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center gap-2">
             <Terminal className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Logs</span>
           </div>
           <button className="text-xs text-primary hover:text-primary/80">
             Download logs
           </button>
-        </div>
-        <div className="p-4">
+          </div>
+          <div className="p-4">
           <div className="font-mono text-xs text-muted-foreground space-y-1">
             <div>[{new Date().toISOString()}] Container started successfully</div>
             <div>[{new Date().toISOString()}] VS Code Desktop initialized</div>
