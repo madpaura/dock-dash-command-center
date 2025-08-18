@@ -433,7 +433,7 @@ def init_backend_routes(app):
             "SUDO_PASSWORD": os.getenv("SUDO_PASSWORD", "abc"),
         }
 
-        docker_image_name = os.getenv("DOCKER_IMAGE", "cxl.io/dev/code-server")
+        docker_image_name = os.getenv("DOCKER_IMAGE", "gpu-dev-environment")
         docker_image_tag = os.getenv("DOCKER_TAG", "latest")
 
         dir_template = os.getenv("WORKDIR_TEMPLATE", "/opt/cxl/")
@@ -509,7 +509,7 @@ def init_backend_routes(app):
 
         ports = {}
         ports[os.getenv("CODE_PORT", 8080)] = start_port
-        ports[os.getenv("JUPYTER_PORT", 8081)] = start_port + 1
+        ports[os.getenv("JUPYTER_PORT", 8088)] = start_port + 1
         ports[os.getenv("GUEST_OS_SSH_PORT", 22)] = start_port + 2
 
         try:

@@ -9,12 +9,14 @@ from loguru import logger
 from database import UserDatabase
 from utils.helpers import hash_password, get_client_ip
 from utils.validators import is_valid_email, is_valid_username
+from services.nginx_service import NginxService
 
 
 class UserService:
     
     def __init__(self, db: UserDatabase):
         self.db = db
+        self.nginx_service = NginxService()
     
     def _parse_user_metadata(self, metadata_raw: Optional[str]) -> Dict[str, Any]:
         if not metadata_raw:
@@ -88,6 +90,16 @@ class UserService:
                 logger.info(f"No container found for user {username}")
                 result['container_deleted'] = True
             
+            # Remove nginx routes for the user
+            nginx_deletion_result = self.nginx_service.remove_user_route(username)
+            result['nginx_routes_deleted'] = nginx_deletion_result.get('success', False)
+            result['nginx_deletion_details'] = nginx_deletion_result
+            
+            if nginx_deletion_result.get('success'):
+                logger.info(f"Nginx routes removed for user {username}")
+            else:
+                logger.warning(f"Failed to remove nginx routes for user {username}: {nginx_deletion_result.get('message')}")
+            
             # Delete user from database
             if self.db.delete_user_by_username(username):
                 result['user_deleted'] = True
@@ -97,11 +109,15 @@ class UserService:
                 audit_details = {
                     'message': f'User {username} (ID: {user_id}) deleted by {admin_username}',
                     'deleted_user': username,
-                    'container_deleted': result['container_deleted']
+                    'container_deleted': result['container_deleted'],
+                    'nginx_routes_deleted': result['nginx_routes_deleted']
                 }
                 if container_info:
                     audit_details['container_name'] = container_info.get('name')
                     audit_details['container_deletion_details'] = result['container_details']
+                
+                # Add nginx deletion details to audit log
+                audit_details['nginx_deletion_details'] = result['nginx_deletion_details']
                 
                 self.db.log_audit_event(
                     admin_username,
@@ -110,10 +126,27 @@ class UserService:
                     metadata.get('server_assignment')
                 )
                 
+                # Create comprehensive success message
+                success_parts = [f'User {username}']
                 if result['container_deleted']:
-                    result['message'] = f'User {username} and associated container successfully deleted'
+                    success_parts.append('container')
+                if result['nginx_routes_deleted']:
+                    success_parts.append('nginx routes')
+                
+                if len(success_parts) > 1:
+                    result['message'] = f'{success_parts[0]} and associated {", ".join(success_parts[1:])} successfully deleted'
                 else:
-                    result['message'] = f'User {username} deleted, but container deletion failed'
+                    result['message'] = f'{success_parts[0]} successfully deleted'
+                
+                # Add warnings for partial failures
+                warnings = []
+                if not result['container_deleted']:
+                    warnings.append('container deletion failed')
+                if not result['nginx_routes_deleted']:
+                    warnings.append('nginx route removal failed')
+                
+                if warnings:
+                    result['message'] += f', but {" and ".join(warnings)}'
                     
                 return result
             else:
@@ -164,6 +197,7 @@ class UserService:
             container_result = self._create_user_container(user['username'], redirect_server, user_resources, agent_port)
             redirect_url=f"NA"
             is_approved = False
+            nginx_result = None
 
             # Update metadata with container information if container was created successfully
             if container_result.get('success') and container_result.get('container'):
@@ -177,6 +211,54 @@ class UserService:
                 logger.info(f"Container {container_info.get('name')} assigned to user {user['username']}")
                 redirect_url=f"http://{redirect_server}:{agent_port}"
                 is_approved = True
+                
+                # Add nginx routes for the user using actual allocated ports
+                port_map = container_info.get('port_map', {})
+                if port_map:
+                    vscode_port = port_map.get('code', 8080)
+                    jupyter_port = port_map.get('jupyter', 8088)
+                    
+                    vscode_server = f"{redirect_server}:{vscode_port}"
+                    jupyter_server = f"{redirect_server}:{jupyter_port}"
+                    
+                    nginx_result = self.nginx_service.add_user_route(
+                        user['username'],
+                        vscode_server,
+                        jupyter_server
+                    )
+                    
+                    # Store nginx routing information in metadata
+                    metadata['nginx_routes'] = {
+                        'configured': nginx_result.get('success', False),
+                        'vscode_server': vscode_server,
+                        'jupyter_server': jupyter_server,
+                        'vscode_port': vscode_port,
+                        'jupyter_port': jupyter_port,
+                        'configured_at': datetime.now().isoformat(),
+                        'result': nginx_result
+                    }
+                else:
+                    # Fallback to default ports if port_map is not available
+                    server_addresses = self.nginx_service.generate_user_servers(user['username'], redirect_server)
+                    nginx_result = self.nginx_service.add_user_route(
+                        user['username'],
+                        server_addresses['vscode_server'],
+                        server_addresses['jupyter_server']
+                    )
+                    
+                    # Store nginx routing information in metadata
+                    metadata['nginx_routes'] = {
+                        'configured': nginx_result.get('success', False),
+                        'vscode_server': server_addresses['vscode_server'],
+                        'jupyter_server': server_addresses['jupyter_server'],
+                        'configured_at': datetime.now().isoformat(),
+                        'result': nginx_result
+                    }
+                
+                if nginx_result.get('success'):
+                    logger.success(f"Nginx routes configured for user {user['username']}")
+                else:
+                    logger.warning(f"Nginx route configuration failed for user {user['username']}: {nginx_result.get('message')}")
             else:
                 metadata['container'] = {
                     'creation_failed': True,
@@ -192,18 +274,26 @@ class UserService:
                 'metadata': json.dumps(metadata)
             })
 
+            # Prepare audit details
+            audit_details = {
+                'message': f'User {user["username"]} (ID: {user_id}) approved by {admin_username}',
+                'approved_user': user['username'],
+                'server_assignment': server_assignment,
+                'redirect_server': redirect_server,
+                'redirect_url': redirect_url,
+                'container_created': container_result.get('success', False),
+                'container_info': container_result.get('container', {})
+            }
+            
+            # Add nginx routing information to audit log
+            if nginx_result:
+                audit_details['nginx_routes_configured'] = nginx_result.get('success', False)
+                audit_details['nginx_result'] = nginx_result
+            
             self.db.log_audit_event(
                 admin_username,
                 'approve_user',
-                {
-                    'message': f'User {user["username"]} (ID: {user_id}) approved by {admin_username}',
-                    'approved_user': user['username'],
-                    'server_assignment': server_assignment,
-                    'redirect_server': redirect_server,
-                    'redirect_url': redirect_url,
-                    'container_created': container_result.get('success', False),
-                    'container_info': container_result.get('container', {})
-                },
+                audit_details,
                 ip_address
             )
             
