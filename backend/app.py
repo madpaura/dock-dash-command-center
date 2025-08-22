@@ -749,7 +749,7 @@ def get_user_services():
     try:
         # Get user's nginx route information
         route_info = nginx_service.get_user_routes_info(username)
-        logger.error(f"Route info: {route_info}")
+        logger.debug(f"Route info: {route_info}")
 
         # Get user data for container and server information
         user_data = db.get_user_by_username(username)
@@ -758,7 +758,27 @@ def get_user_services():
         
         # Parse user metadata for container and server info
         metadata = user_service._parse_user_metadata(user_data.get('metadata'))
-        logger.error(f"Metadata: {metadata}")
+        logger.debug(f"Metadata: {metadata}")
+        
+        # Get real-time container status from Docker agent
+        container_name = metadata.get('container', {}).get('name')
+        real_container_status = 'stopped'
+        container_id = None
+        
+        if container_name:
+            server_assignment = metadata.get('server_assignment')
+            if server_assignment and server_assignment != 'NA':
+                try:
+                    server_ip = user_service._get_server_ip_from_assignment(server_assignment)
+                    if server_ip:
+                        # Query agent for real-time container status
+                        container_status_response = agent_service.query_agent_container_status(server_ip, container_name, agent_port=8511)
+                        if container_status_response and container_status_response.get('success'):
+                            real_container_status = container_status_response.get('status', 'stopped')
+                            container_id = container_status_response.get('id')
+                except Exception as e:
+                    logger.debug(f"Could not fetch real-time container status for {username}: {e}")
+        
         # Build service URLs based on nginx routes and container status
         services = {
             'vscode': {
@@ -783,40 +803,35 @@ def get_user_services():
             }
         }
         
-        # If user has nginx routes configured and container exists
-        if route_info.get('has_routes') and metadata.get('container'):
-            container_info = metadata['container']
-            container_status = container_info.get('status', 'unknown')
-            
-            # Only enable services if container is running
-            if container_status == 'created':
-                if route_info.get('vscode_url'):
-                    services['vscode'] = {
-                        'available': True,
-                        'url': f"http://localhost{route_info['vscode_url']}",
-                        'status': 'running'
-                    }
-                
-                if route_info.get('jupyter_url'):
-                    services['jupyter'] = {
-                        'available': True,
-                        'url': f"http://localhost{route_info['jupyter_url']}",
-                        'status': 'running'
-                    }
-                
-                # For now, IntelliJ and Terminal use same base URL pattern
-                # These can be extended when those services are implemented
-                services['intellij'] = {
+        # If user has nginx routes configured and container is running
+        if route_info.get('has_routes') and real_container_status == 'running':
+            if route_info.get('vscode_url'):
+                services['vscode'] = {
                     'available': True,
-                    'url': f"http://localhost/user/{username}/intellij/",
+                    'url': f"http://localhost{route_info['vscode_url']}",
                     'status': 'running'
                 }
-                
-                services['terminal'] = {
+            
+            if route_info.get('jupyter_url'):
+                services['jupyter'] = {
                     'available': True,
-                    'url': f"http://localhost/user/{username}/terminal/",
-                    'status': 'running' 
+                    'url': f"http://localhost{route_info['jupyter_url']}",
+                    'status': 'running'
                 }
+            
+            # For now, IntelliJ and Terminal use same base URL pattern
+            # These can be extended when those services are implemented
+            services['intellij'] = {
+                'available': True,
+                'url': f"http://localhost/user/{username}/intellij/",
+                'status': 'running'
+            }
+            
+            services['terminal'] = {
+                'available': False,
+                'url': f"http://localhost/user/{username}/terminal/",
+                'status': 'running' 
+            }
         
         # Get server information for system stats
         server_assignment = metadata.get('server_assignment')
@@ -837,8 +852,9 @@ def get_user_services():
                 'username': username,
                 'services': services,
                 'container': {
-                    'name': metadata.get('container', {}).get('name', 'NA'),
-                    'status': 'running' if metadata.get('container', {}).get('status', 'unknown') == 'created' else 'NA',
+                    'name': container_name or 'NA',
+                    'id': container_id,
+                    'status': real_container_status,
                     'server': server_assignment or 'NA'
                 },
                 'server_stats': server_stats,
@@ -849,6 +865,123 @@ def get_user_services():
     except Exception as e:
         logger.error(f"Error getting user services for {username}: {e}")
         return jsonify({'success': False, 'error': 'Failed to fetch user services'}), 500
+
+
+@app.route('/api/user/container/start', methods=['POST'])
+def start_user_container():
+    """Start user's container"""
+    # Check session authentication
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
+    
+    username = session.get('username')
+    
+    try:
+        # Get user data for container and server information
+        user_data = db.get_user_by_username(username)
+        if not user_data:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Parse user metadata for container and server info
+        metadata = user_service._parse_user_metadata(user_data.get('metadata'))
+        container_name = metadata.get('container', {}).get('name')
+        server_assignment = metadata.get('server_assignment')
+        
+        if not container_name:
+            return jsonify({'success': False, 'error': 'No container assigned to user'}), 400
+        
+        if not server_assignment or server_assignment == 'NA':
+            return jsonify({'success': False, 'error': 'No server assigned to user'}), 400
+        
+        # Get server IP
+        server_ip = user_service._get_server_ip_from_assignment(server_assignment)
+        if not server_ip:
+            return jsonify({'success': False, 'error': 'Could not determine server IP'}), 400
+        
+        # Start container via agent
+        result = agent_service.manage_user_container(server_ip, container_name, 'start', agent_port=8511, timeout=20)
+        
+        if result and result.get('success'):
+            # Log the action
+            db.log_audit_event(
+                username=username,
+                action_type='container_start',
+                action_details={
+                    'message': f'User {username} started container {container_name}',
+                    'container_name': container_name,
+                    'server_ip': server_ip
+                },
+                ip_address=get_client_ip(request)
+            )
+            
+            return jsonify({'success': True, 'message': 'Container started successfully'})
+        else:
+            error_msg = result.get('error', 'Failed to start container') if result else 'Agent not available'
+            return jsonify({'success': False, 'error': error_msg}), 500
+            
+    except Exception as e:
+        logger.error(f"Error starting container for user {username}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to start container'}), 500
+
+
+@app.route('/api/user/container/restart', methods=['POST'])
+def restart_user_container():
+    """Restart user's container"""
+    # Check session authentication
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
+    
+    username = session.get('username')
+    
+    try:
+        # Get user data for container and server information
+        user_data = db.get_user_by_username(username)
+        if not user_data:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Parse user metadata for container and server info
+        metadata = user_service._parse_user_metadata(user_data.get('metadata'))
+        container_name = metadata.get('container', {}).get('name')
+        server_assignment = metadata.get('server_assignment')
+        
+        if not container_name:
+            return jsonify({'success': False, 'error': 'No container assigned to user'}), 400
+        
+        if not server_assignment or server_assignment == 'NA':
+            return jsonify({'success': False, 'error': 'No server assigned to user'}), 400
+        
+        # Get server IP
+        server_ip = user_service._get_server_ip_from_assignment(server_assignment)
+        if not server_ip:
+            return jsonify({'success': False, 'error': 'Could not determine server IP'}), 400
+        
+        # Restart container via agent
+        result = agent_service.manage_user_container(server_ip, container_name, 'restart', agent_port=8511, timeout=20)
+        
+        if result and result.get('success'):
+            # Log the action
+            db.log_audit_event(
+                username=username,
+                action_type='container_restart',
+                action_details={
+                    'message': f'User {username} restarted container {container_name}',
+                    'container_name': container_name,
+                    'server_ip': server_ip
+                },
+                ip_address=get_client_ip(request)
+            )
+            
+            return jsonify({'success': True, 'message': 'Container restarted successfully'})
+        else:
+            error_msg = result.get('error', 'Failed to restart container') if result else 'Agent not available'
+            return jsonify({'success': False, 'error': error_msg}), 500
+            
+    except Exception as e:
+        logger.error(f"Error restarting container for user {username}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to restart container'}), 500
+
 
 if __name__ == '__main__':
     config_path = os.path.join('.streamlit', 'config.toml')

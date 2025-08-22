@@ -13,7 +13,7 @@ import { useSidebar } from '../hooks/useSidebar';
 
 const navItems = [
   { path: '/user', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { path: '/user/files', label: 'File Manager', icon: FolderOpen },
+  // { path: '/user/files', label: 'File Manager', icon: FolderOpen },
 ];
 
 export const UserSidebar: React.FC = () => {

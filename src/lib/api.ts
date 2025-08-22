@@ -741,6 +741,24 @@ export const userServicesApi = {
     });
   },
 
+  async startContainer(token: string): Promise<ApiResponse<{message: string}>> {
+    return fetchApi('/user/container/start', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async restartContainer(token: string): Promise<ApiResponse<{message: string}>> {
+    return fetchApi('/user/container/restart', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
 };
 
 /**

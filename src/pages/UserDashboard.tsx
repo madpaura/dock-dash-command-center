@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Terminal, Cpu, HardDrive, MemoryStick, Activity, ExternalLink, RefreshCw } from 'lucide-react'; 
+import { Monitor, Terminal, Cpu, HardDrive, MemoryStick, Activity, ExternalLink, RefreshCw, Play, RotateCcw } from 'lucide-react'; 
 import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
@@ -57,6 +57,7 @@ export const UserDashboard: React.FC = () => {
   const [userServices, setUserServices] = useState<UserServicesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [containerAction, setContainerAction] = useState<'start' | 'restart' | null>(null);
 
   // Fetch user services data on component mount
   useEffect(() => {
@@ -136,15 +137,6 @@ export const UserDashboard: React.FC = () => {
       description: 'Python data science environment'
     },
     {
-      id: 'intellij',
-      name: 'IntelliJ IDEA Ultimate',
-      icon: Monitor,
-      status: userServices?.services?.intellij?.available ? userServices.services.intellij.status : 'stopped',
-      port: 8082,
-      url: userServices?.services?.intellij?.url || undefined,
-      description: 'IntelliJ IDEA Ultimate IDE'
-    },
-    {
       id: 'terminal',
       name: 'Terminal',
       icon: Terminal,
@@ -213,6 +205,31 @@ export const UserDashboard: React.FC = () => {
     }
   };
 
+  const handleContainerAction = async (action: 'start' | 'restart') => {
+    if (!user?.token) return;
+    
+    try {
+      setContainerAction(action);
+      setError(null);
+      
+      const response = action === 'start' 
+        ? await userServicesApi.startContainer(user.token)
+        : await userServicesApi.restartContainer(user.token);
+      
+      if (response.success) {
+        // Refresh data after successful action
+        await handleRefresh();
+      } else {
+        setError(response.error || `Failed to ${action} container`);
+      }
+    } catch (err) {
+      setError(`Failed to ${action} container`);
+      console.error(`Error ${action}ing container:`, err);
+    } finally {
+      setContainerAction(null);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'running':
@@ -256,6 +273,40 @@ export const UserDashboard: React.FC = () => {
           <span className="text-muted-foreground">
             {userServices?.container?.server && userServices.container.server !== 'NA' ? `Server: ${userServices.container.server}` : 'No server assigned'}
           </span>
+          
+          {/* Container Management Buttons */}
+          {userServices?.container?.name && userServices.container.name !== 'NA' && (
+            <div className="flex items-center gap-2">
+              {userServices.container.status !== 'running' && (
+                <button
+                  onClick={() => handleContainerAction('start')}
+                  disabled={containerAction === 'start' || loading}
+                  className="flex items-center gap-1 px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {containerAction === 'start' ? (
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3" />
+                  )}
+                  Start
+                </button>
+              )}
+              
+              <button
+                onClick={() => handleContainerAction('restart')}
+                disabled={containerAction === 'restart' || loading}
+                className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {containerAction === 'restart' ? (
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-3 h-3" />
+                )}
+                Restart
+              </button>
+            </div>
+          )}
+          
           <button 
             onClick={handleRefresh}
             className="text-muted-foreground hover:text-foreground"
@@ -310,7 +361,10 @@ export const UserDashboard: React.FC = () => {
                     {!isAvailable && !isLoading && (
                       <div className="absolute inset-0 bg-gray-900/20 rounded-lg flex items-center justify-center">
                         <span className="text-xs text-gray-500 font-medium">
-                          {userServices?.container?.status === 'running' ? 'Service Unavailable' : 'Container Stopped'}
+                          {userServices?.container?.status === 'running' ? 'Service Unavailable' : 
+                           userServices?.container?.status === 'stopped' ? 'Container Stopped' :
+                           userServices?.container?.status === 'exited' ? 'Container Exited' :
+                           'Container Not Running'}
                         </span>
                       </div>
                     )}

@@ -184,6 +184,66 @@ class AgentService:
         logger.info(f"Successfully queried Docker images from {len(results)} out of {len(server_list)} agents")
         return results
 
+    def query_agent_container_status(self, agent_ip: str, container_name: str, agent_port: int = None, timeout: int = None) -> Optional[Dict[str, Any]]:
+        """Query agent for real-time container status"""
+        if agent_port is None:
+            agent_port = self.default_port
+        if timeout is None:
+            timeout = self.default_timeout
+            
+        try:
+            logger.debug(f"Querying container status for {container_name} from agent {agent_ip}:{agent_port}")
+            
+            url = f"http://{agent_ip}:{agent_port}/api/containers/{container_name}/status"
+            
+            response = requests.get(url, timeout=timeout)
+            if response.status_code == 200:
+                result = response.json()
+                logger.debug(f"Container status response: {result}")
+                return result
+            else:
+                logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")
+                return None
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout querying container status from agent {agent_ip}:{agent_port}")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Connection failed to agent {agent_ip}:{agent_port}")
+            return None
+        except Exception as e:
+            logger.error(f"Error querying container status from agent {agent_ip}:{agent_port}: {e}")
+            return None
+
+    def manage_user_container(self, agent_ip: str, container_name: str, action: str, agent_port: int = None, timeout: int = None) -> Optional[Dict[str, Any]]:
+        """Manage user container (start, stop, restart)"""
+        if agent_port is None:
+            agent_port = self.default_port
+        if timeout is None:
+            timeout = self.default_timeout
+            
+        try:
+            logger.debug(f"Managing container {container_name} with action {action} on agent {agent_ip}:{agent_port}")
+            
+            url = f"http://{agent_ip}:{agent_port}/api/containers/{container_name}/{action}"
+            
+            response = requests.post(url, timeout=timeout)
+            if response.status_code == 200:
+                result = response.json()
+                logger.debug(f"Container {action} response: {result}")
+                return result
+            else:
+                logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")
+                return None
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout managing container on agent {agent_ip}:{agent_port}")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Connection failed to agent {agent_ip}:{agent_port}")
+            return None
+        except Exception as e:
+            logger.error(f"Error managing container on agent {agent_ip}:{agent_port}: {e}")
+            return None
+
 
 # Global instance for backward compatibility
 agent_service = AgentService()

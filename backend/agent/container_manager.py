@@ -599,6 +599,33 @@ def init_backend_routes(app):
             return jsonify({"success": True, "stats": stats})
         return jsonify({"success": False, "error": "Container not found"}), 404
 
+    @app.route("/api/containers/<string:container_id>/status", methods=["GET"])
+    def get_container_status(container_id):
+        """Get real-time container status"""
+        try:
+            container = docker_manager.list_container(container_id)
+            if container:
+                return jsonify({
+                    "success": True,
+                    "status": container.status,
+                    "id": container.id,
+                    "name": container.name
+                })
+            else:
+                return jsonify({
+                    "success": True,
+                    "status": "stopped",
+                    "id": None,
+                    "name": container_id
+                })
+        except Exception as e:
+            logger.error(f"Error getting container status for {container_id}: {e}")
+            return jsonify({
+                "success": False,
+                "error": str(e),
+                "status": "unknown"
+            }), 500
+
     @app.route("/api/containers/<string:container_id>/ports", methods=["GET"])
     def get_port_info(container_id):
         port_manager = PortManager()
