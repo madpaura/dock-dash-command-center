@@ -5,6 +5,7 @@ import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
 import { ProgressBar } from '../components/ui/progress-bar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../components/ui/tooltip';
+import { StatusBar } from '../components/StatusBar';
 import { userServicesApi, UserServicesData } from '../lib/api';
 
 interface SystemStats {
@@ -253,69 +254,67 @@ export const UserDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${userServices?.container?.status === 'running' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-lg font-medium">Dashboard</span>
-          {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
-        </div>
-        <div className="flex items-center gap-4">
-          {error && (
-            <button 
-              onClick={handleRefresh}
-              className="text-xs text-red-500 hover:text-red-400"
-            >
-              Retry
-            </button>
-          )}
-          <span className="text-muted-foreground">
-            {userServices?.container?.server && userServices.container.server !== 'NA' ? `Server: ${userServices.container.server}` : 'No server assigned'}
-          </span>
-          
-          {/* Container Management Buttons */}
-          {userServices?.container?.name && userServices.container.name !== 'NA' && (
-            <div className="flex items-center gap-2">
-              {userServices.container.status !== 'running' && (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="pb-8 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${userServices?.container?.status === 'running' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-lg font-medium">Dashboard</span>
+            {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
+          </div>
+          <div className="flex items-center gap-4">
+            {error && (
+              <button 
+                onClick={handleRefresh}
+                className="text-xs text-red-500 hover:text-red-400"
+              >
+                Retry
+              </button>
+            )}
+            
+            {/* Container Management Buttons */}
+            {userServices?.container?.name && userServices.container.name !== 'NA' && (
+              <div className="flex items-center gap-2">
+                {userServices.container.status !== 'running' && (
+                  <button
+                    onClick={() => handleContainerAction('start')}
+                    disabled={containerAction === 'start' || loading}
+                    className="flex items-center gap-1 px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {containerAction === 'start' ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Play className="w-3 h-3" />
+                    )}
+                    Start
+                  </button>
+                )}
+                
                 <button
-                  onClick={() => handleContainerAction('start')}
-                  disabled={containerAction === 'start' || loading}
-                  className="flex items-center gap-1 px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => handleContainerAction('restart')}
+                  disabled={containerAction === 'restart' || loading}
+                  className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {containerAction === 'start' ? (
+                  {containerAction === 'restart' ? (
                     <RefreshCw className="w-3 h-3 animate-spin" />
                   ) : (
-                    <Play className="w-3 h-3" />
+                    <RotateCcw className="w-3 h-3" />
                   )}
-                  Start
+                  Restart
                 </button>
-              )}
-              
-              <button
-                onClick={() => handleContainerAction('restart')}
-                disabled={containerAction === 'restart' || loading}
-                className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {containerAction === 'restart' ? (
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                ) : (
-                  <RotateCcw className="w-3 h-3" />
-                )}
-                Restart
-              </button>
-            </div>
-          )}
-          
-          <button 
-            onClick={handleRefresh}
-            className="text-muted-foreground hover:text-foreground"
-            disabled={loading}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+              </div>
+            )}
+            
+            <button 
+              onClick={handleRefresh}
+              className="text-muted-foreground hover:text-foreground"
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
-      </div>
 
       {/* Error Message */}
       {error && (
@@ -443,85 +442,6 @@ export const UserDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Host Statistics */}
-        <div>
-          <h3 className="text-lg font-semibold text-foreground mb-3">Host Resources</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <Cpu className="w-4 h-4 text-red-500" />
-                <span className="text-xs text-muted-foreground">CPU Usage</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{stats.cpu.cores}/12 cores</span>
-                  <span className="text-xs text-muted-foreground">{stats.host.cpuUsage}%</span>
-                </div>
-                <ProgressBar 
-                  value={stats.host.cpuUsage} 
-                  max={100} 
-                  size="md"
-                />
-              </div>
-            </div>
-
-            <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <MemoryStick className="w-4 h-4 text-blue-500" />
-                <span className="text-xs text-muted-foreground">Memory Usage</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">10.7/15.3 GiB</span>
-                  <span className="text-xs text-muted-foreground">{stats.host.memoryUsage.toFixed(1)}%</span>
-                </div>
-                <ProgressBar 
-                  value={stats.host.memoryUsage} 
-                  max={100} 
-                  size="md"
-                />
-              </div>
-            </div>
-
-            <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <Activity className="w-4 h-4 text-green-500" />
-                <span className="text-xs text-muted-foreground">Remaining CPU</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{userServices?.server_stats?.remaining_cpu || 0} cores</span>
-                  <span className="text-xs text-muted-foreground">{userServices?.server_stats?.cpu_count || 0} total</span>
-                </div>
-                <ProgressBar 
-                  value={userServices?.server_stats?.remaining_cpu || 0} 
-                  max={userServices?.server_stats?.cpu_count || 1} 
-                  size="md"
-                  color="success"
-                />
-              </div>
-            </div>
-
-            <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <HardDrive className="w-4 h-4 text-orange-500" />
-                <span className="text-xs text-muted-foreground">Swap Usage</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{userServices?.server_stats?.remaining_memory || 0} GB</span>
-                  <span className="text-xs text-muted-foreground">{userServices?.server_stats?.total_memory || 0} GB total</span>
-                </div>
-                <ProgressBar 
-                  value={userServices?.server_stats?.remaining_memory || 0} 
-                  max={userServices?.server_stats?.total_memory || 1} 
-                  size="md"
-                  color="warning"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Logs Section */}
@@ -544,7 +464,11 @@ export const UserDashboard: React.FC = () => {
             <div>[{new Date().toISOString()}] System resources within normal limits</div>
           </div>
         </div>
+        </div>
       </div>
+      
+      {/* Status Bar - Fixed at Bottom */}
+      <StatusBar userServices={userServices} containerAction={containerAction} />
     </div>
   );
 };
