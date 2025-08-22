@@ -710,23 +710,54 @@ export interface UserService {
   status: 'running' | 'stopped' | 'starting';
 }
 
-export interface UserServicesData {
-  username: string;
-  services: {
-    vscode: UserService;
-    jupyter: UserService;
-    intellij: UserService;
-    terminal: UserService;
-  };
-  container: {
-    name: string;
-    status: string;
-    server: string;
-  };
-  server_stats: any;
-  nginx_available: boolean;
+export interface ServiceInfo {
+  available: boolean;
+  url: string | null;
+  status: 'running' | 'stopped' | 'starting';
 }
 
+export interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+  username?: string;
+  ip_address?: string;
+}
+
+export interface LogsResponse {
+  success: boolean;
+  data?: {
+    logs: LogEntry[];
+    total: number;
+  };
+  logs?: LogEntry[];
+  total?: number;
+  error?: string;
+}
+
+export interface UserServicesData {
+  success: boolean;
+  data: {
+    username: string;
+    container: {
+      id: string | null;
+      name: string;
+      server: string;
+      status: string;
+    };
+    services: {
+      vscode: ServiceInfo;
+      jupyter: ServiceInfo;
+      intellij: ServiceInfo;
+      terminal: ServiceInfo;
+    };
+    server_stats: any;
+    nginx_available: boolean;
+  };
+}
+
+// Type alias for the actual data structure used in components
+export type UserServicesDataFlat = UserServicesData['data'];
 
 /**
  * User API calls
@@ -750,15 +781,45 @@ export const userServicesApi = {
     });
   },
 
-  async restartContainer(token: string): Promise<ApiResponse<{message: string}>> {
+  async restartContainer(token: string): Promise<ApiResponse<any>> {
     return fetchApi('/user/container/restart', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
-      },
+        'Content-Type': 'application/json'
+      }
     });
   },
 
+  async getLogs(token: string, limit?: number, level?: string): Promise<LogsResponse> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (level) params.append('level', level);
+    
+    const response = await fetchApi(`/user/logs?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+   
+    return response as LogsResponse;
+  },
+
+  async downloadLogs(token: string): Promise<Blob> {
+    const response = await fetch('/api/user/logs/download', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to download logs');
+    }
+    
+    return response.blob();
+  }
 };
 
 /**

@@ -1,13 +1,14 @@
 import React from 'react';
-import { Monitor, Cpu, MemoryStick, HardDrive, Activity, Wifi, GitBranch, Bell, Settings } from 'lucide-react';
-import { UserServicesData } from '../lib/api';
+import { Monitor, Cpu, MemoryStick, HardDrive, Activity, Wifi, GitBranch } from 'lucide-react';
+import { UserServicesDataFlat } from '../lib/api';
 
 interface StatusBarProps {
-  userServices?: UserServicesData;
+  userServices?: UserServicesDataFlat;
   containerAction?: string | null;
+  sidebarCollapsed?: boolean;
 }
 
-export const StatusBar: React.FC<StatusBarProps> = ({ userServices, containerAction }) => {
+export const StatusBar: React.FC<StatusBarProps> = ({ userServices, containerAction, sidebarCollapsed = false }) => {
   const formatUptime = (uptime: string) => {
     return uptime || '0h 0m';
   };
@@ -34,7 +35,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ userServices, containerAct
   const serverStats = userServices?.server_stats;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-6 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs flex items-center justify-between px-4 border-t border-slate-300 dark:border-slate-700 z-50">
+    <div className={`fixed bottom-0 left-0 right-0 h-6 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs flex items-center justify-between px-4 border-t border-slate-300 dark:border-slate-700 z-50 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
       {/* Left side - Container and Server Info */}
       <div className="flex items-center gap-4">
         {/* Container Status */}

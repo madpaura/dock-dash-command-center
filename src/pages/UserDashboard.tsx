@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Terminal, Cpu, HardDrive, MemoryStick, Activity, ExternalLink, RefreshCw, Play, RotateCcw } from 'lucide-react'; 
+import { Terminal, Cpu, HardDrive, MemoryStick, RefreshCw, Play, RotateCcw } from 'lucide-react'; 
 import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
 import { ProgressBar } from '../components/ui/progress-bar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../components/ui/tooltip';
 import { StatusBar } from '../components/StatusBar';
-import { userServicesApi, UserServicesData } from '../lib/api';
+import { LogsWindow } from '../components/LogsWindow';
+import { userServicesApi, UserServicesDataFlat } from '../lib/api';
+import { useSidebar } from '../hooks/useSidebar';
 
 interface SystemStats {
   cpu: {
@@ -43,6 +45,7 @@ interface Application {
 
 export const UserDashboard: React.FC = () => {
   const { user } = useAuth();
+  const { collapsed } = useSidebar();
   const [stats, setStats] = useState<SystemStats>({
     cpu: { usage: 0, cores: 0 },
     memory: { used: 0, total: 0, percentage: 0 },
@@ -55,10 +58,12 @@ export const UserDashboard: React.FC = () => {
     }
   });
 
-  const [userServices, setUserServices] = useState<UserServicesData | null>(null);
+  const [userServices, setUserServices] = useState<UserServicesDataFlat | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [containerAction, setContainerAction] = useState<'start' | 'restart' | null>(null);
+  const [containerAction, setContainerAction] = useState<string | null>(null);
+  const [logsWindowOpen, setLogsWindowOpen] = useState(false);
+  const [logsWindowMinimized, setLogsWindowMinimized] = useState(false);
 
   // Fetch user services data on component mount
   useEffect(() => {
@@ -71,7 +76,7 @@ export const UserDashboard: React.FC = () => {
         const response = await userServicesApi.getUserServices(user.token);
         
         if (response.success && response.data) {
-          const userData = response.data.data;
+          const userData = response.data.data as unknown as UserServicesDataFlat;
           setUserServices(userData);
           
           // Update stats with real server data if available
@@ -163,7 +168,7 @@ export const UserDashboard: React.FC = () => {
       const response = await userServicesApi.getUserServices(user.token);
       
       if (response.success && response.data) {
-        const userData = response.data.data;
+        const userData = response.data.data as unknown as UserServicesDataFlat;
         setUserServices(userData);
         
         // Update stats with real server data if available
@@ -255,7 +260,7 @@ export const UserDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="pb-8 p-6">
+      <div className="pb-8 p-6 mb-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -451,24 +456,45 @@ export const UserDashboard: React.FC = () => {
             <Terminal className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Logs</span>
           </div>
-          <button className="text-xs text-primary hover:text-primary/80">
-            Download logs
+          <button 
+            onClick={() => {
+              setLogsWindowOpen(true);
+              setLogsWindowMinimized(false);
+            }}
+            className="text-xs text-primary hover:text-primary/80"
+          >
+            Open logs window
           </button>
           </div>
           <div className="p-4">
           <div className="font-mono text-xs text-muted-foreground space-y-1">
-            <div>[{new Date().toISOString()}] Container started successfully</div>
-            <div>[{new Date().toISOString()}] VS Code Desktop initialized</div>
-            <div>[{new Date().toISOString()}] code-server listening on port 8081</div>
-            <div>[{new Date().toISOString()}] Jupyter Notebook started on port 8888</div>
-            <div>[{new Date().toISOString()}] System resources within normal limits</div>
+            <div className="text-center py-4">
+              <button 
+                onClick={() => {
+                  setLogsWindowOpen(true);
+                  setLogsWindowMinimized(false);
+                }}
+                className="text-primary hover:text-primary/80"
+              >
+                Click to open real-time logs window
+              </button>
+            </div>
           </div>
         </div>
         </div>
       </div>
       
       {/* Status Bar - Fixed at Bottom */}
-      <StatusBar userServices={userServices} containerAction={containerAction} />
+      <StatusBar userServices={userServices} containerAction={containerAction} sidebarCollapsed={collapsed} />
+      
+      {/* Logs Window */}
+      {logsWindowOpen && (
+        <LogsWindow
+          isMinimized={logsWindowMinimized}
+          onMinimize={() => setLogsWindowMinimized(!logsWindowMinimized)}
+          onClose={() => setLogsWindowOpen(false)}
+        />
+      )}
     </div>
   );
 };

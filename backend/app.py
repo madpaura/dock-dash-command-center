@@ -24,9 +24,34 @@ from services.cleanup_service import CleanupService
 # Import utilities
 from utils.helpers import get_client_ip
 from utils.validators import is_valid_email
+import json
+from datetime import datetime
+from collections import deque
 
 # Configure logger
 logger.add("manager_backend.log", rotation="500 MB", retention="10 days", level="INFO")
+
+# In-memory log storage for real-time logs (max 1000 entries)
+app_logs = deque(maxlen=1000)
+
+def add_app_log(level, message, username=None, ip_address=None):
+    """Add a log entry to the in-memory log storage"""
+    log_entry = {
+        'timestamp': datetime.now().isoformat(),
+        'level': level,
+        'message': message,
+        'username': username,
+        'ip_address': ip_address
+    }
+    app_logs.append(log_entry)
+    
+    # Also log to file
+    if level == 'ERROR':
+        logger.error(f"{message} | User: {username} | IP: {ip_address}")
+    elif level == 'WARNING':
+        logger.warning(f"{message} | User: {username} | IP: {ip_address}")
+    else:
+        logger.info(f"{message} | User: {username} | IP: {ip_address}")
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -747,6 +772,9 @@ def get_user_services():
     username = session.get('username')
     
     try:
+        # Add login log
+        add_app_log('INFO', f'User {username} accessed services dashboard', username, get_client_ip(request))
+        
         # Get user's nginx route information
         route_info = nginx_service.get_user_routes_info(username)
         logger.debug(f"Route info: {route_info}")
@@ -915,9 +943,13 @@ def start_user_container():
                 ip_address=get_client_ip(request)
             )
             
+            # Add to app logs
+            add_app_log('INFO', f'Container {container_name} started successfully', username, get_client_ip(request))
+            
             return jsonify({'success': True, 'message': 'Container started successfully'})
         else:
             error_msg = result.get('error', 'Failed to start container') if result else 'Agent not available'
+            add_app_log('ERROR', f'Failed to start container {container_name}: {error_msg}', username, get_client_ip(request))
             return jsonify({'success': False, 'error': error_msg}), 500
             
     except Exception as e:
@@ -973,14 +1005,90 @@ def restart_user_container():
                 ip_address=get_client_ip(request)
             )
             
+            # Add to app logs
+            add_app_log('INFO', f'Container {container_name} restarted successfully', username, get_client_ip(request))
+            
             return jsonify({'success': True, 'message': 'Container restarted successfully'})
         else:
             error_msg = result.get('error', 'Failed to restart container') if result else 'Agent not available'
+            add_app_log('ERROR', f'Failed to restart container {container_name}: {error_msg}', username, get_client_ip(request))
             return jsonify({'success': False, 'error': error_msg}), 500
             
     except Exception as e:
         logger.error(f"Error restarting container for user {username}: {e}")
         return jsonify({'success': False, 'error': 'Failed to restart container'}), 500
+
+
+@app.route('/api/user/logs', methods=['GET'])
+def get_user_logs():
+    """Get user-specific logs"""
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
+    
+    username = session.get('username')
+    limit = request.args.get('limit', 100, type=int)
+    level = request.args.get('level', None)  # Filter by log level
+    
+    try:
+        # Filter logs for this user or system-wide logs
+        user_logs = []
+        for log_entry in reversed(list(app_logs)):
+            # Include logs for this user or system logs without specific user
+            if log_entry.get('username') == username or log_entry.get('username') is None:
+                if level is None or log_entry.get('level') == level:
+                    user_logs.append(log_entry)
+                    if len(user_logs) >= limit:
+                        break
+        
+        return jsonify({
+            'success': True,
+            'logs': user_logs,
+            'total': len(user_logs)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrieving logs for user {username}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to retrieve logs'}), 500
+
+
+@app.route('/api/user/logs/download', methods=['GET'])
+def download_user_logs():
+    """Download user logs as a file"""
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
+    
+    username = session.get('username')
+    
+    try:
+        # Generate log file content
+        log_content = []
+        for log_entry in app_logs:
+            if log_entry.get('username') == username or log_entry.get('username') is None:
+                timestamp = log_entry.get('timestamp', '')
+                level = log_entry.get('level', 'INFO')
+                message = log_entry.get('message', '')
+                log_line = f"[{timestamp}] {level}: {message}"
+                log_content.append(log_line)
+        
+        # Create response with file content
+        from flask import Response
+        
+        log_text = '\n'.join(log_content)
+        filename = f"logs_{username}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        add_app_log('INFO', f'User {username} downloaded logs', username, get_client_ip(request))
+        
+        return Response(
+            log_text,
+            mimetype='text/plain',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading logs for user {username}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to download logs'}), 500
 
 
 if __name__ == '__main__':
