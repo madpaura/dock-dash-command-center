@@ -404,7 +404,10 @@ def init_backend_routes(app):
         if not docker_helper.setup_workdir(user, dir_template, dir_deploy):
             return jsonify({"success": False, "error": "Failed setting up work dir"}), 400
 
-        guest_os_list = [item.strip() for item in os.getenv("GUEST_OS_LIST").split(",")]
+        guest_os_list = []
+        guest_os_env = os.getenv("GUEST_OS_LIST")
+        if guest_os_env:
+            guest_os_list = [item.strip() for item in guest_os_env.split(",")]
         for guest_os in guest_os_list:
             dst_path = (
                 f"{dir_deploy}/guestos/{os.path.basename(os.path.dirname(guest_os))}"
