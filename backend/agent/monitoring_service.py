@@ -4,7 +4,6 @@ from docker.errors import DockerException
 from loguru import logger
 import toml
 import os
-from dotenv import load_dotenv
 from flask import jsonify, request
 import schedule
 import time
@@ -15,7 +14,7 @@ from loguru import logger
 from dotenv import load_dotenv
 import atexit
 
-load_dotenv("../.env", override=True)
+load_dotenv(".env", override=True)
 manager_ip = os.getenv("MGMT_SERVER_IP")
 manager_port = int(os.getenv("MGMT_SERVER_PORT"))
 url = f"http://{manager_ip}:{manager_port}"

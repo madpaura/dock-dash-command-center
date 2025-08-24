@@ -279,7 +279,7 @@ def create_admin_user():
         admin_username = auth_service.get_admin_username_from_token()
         ip_address = get_client_ip(request)
         
-        result = user_service.create_admin_user(data, admin_username, agent_port, ip_address)
+        result = user_service.create_admin_user(data, admin_username)
         
         if result['success']:
             return jsonify(result)
@@ -1088,6 +1088,50 @@ def download_user_logs():
     except Exception as e:
         logger.error(f"Error downloading logs for user {username}: {e}")
         return jsonify({'success': False, 'error': 'Failed to download logs'}), 500
+
+
+# Health check endpoint for Docker
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Docker container monitoring."""
+    try:
+        # Check database connection
+        db_status = "healthy"
+        try:
+            # Simple database connectivity test
+            db.get_user_by_id(1)  # This will test DB connection
+        except Exception as e:
+            db_status = f"unhealthy: {str(e)}"
+        
+        # Check if services are initialized
+        services_status = {
+            "auth_service": "healthy" if auth_service else "unhealthy",
+            "user_service": "healthy" if user_service else "unhealthy", 
+            "server_service": "healthy" if server_service else "unhealthy",
+            "agent_service": "healthy" if agent_service else "unhealthy"
+        }
+        
+        # Overall health status
+        overall_status = "healthy" if db_status == "healthy" and all(status == "healthy" for status in services_status.values()) else "unhealthy"
+        
+        response = {
+            "status": overall_status,
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "database": db_status,
+            "services": services_status,
+            "uptime": "running"
+        }
+        
+        status_code = 200 if overall_status == "healthy" else 503
+        return jsonify(response), status_code
+        
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }), 503
 
 
 if __name__ == '__main__':

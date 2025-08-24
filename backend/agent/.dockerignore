@@ -1,0 +1,64 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+agent_service.log
+
+# Database files
+*.db
+*.sqlite
+port_manager.db
+
+# Environment files (will be passed as env vars)
+# .env
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+Readme.md
+
+# Backup files
+*_backup_*
+
+# Test files
+test_*
+*_test.py
+
+# Temporary files
+tmp/
+temp/
+
+# Build artifacts
+build/
+dist/
+
+# Coverage reports
+htmlcov/
+.coverage
+
+# Static files that aren't needed in container
+static/
+electron-client/

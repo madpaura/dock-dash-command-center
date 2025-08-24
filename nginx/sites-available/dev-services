@@ -58,7 +58,29 @@ server {
         proxy_set_header X-Service "vscode";
     }
     
-    # User routing pattern for Jupyter
+    # Handle Jupyter static files first (more specific pattern)
+    location ~ ^/user/([^/]+)/jupyter/(static/.*)$ {
+        set $username $1;
+        set $path $2;
+        
+        # Proxy to user-specific jupyter upstream for static files
+        proxy_pass http://jupyter_$username/$path$is_args$args;
+        
+        # Standard proxy headers
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Cache static assets
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        
+        # No special headers needed for static files
+        proxy_buffering off;
+    }
+    
+    # User routing pattern for Jupyter (general)
     location ~ ^/user/([^/]+)/jupyter/(.*)$ {
         set $username $1;
         set $path $2;
@@ -77,9 +99,14 @@ server {
         proxy_set_header Connection upgrade;
         proxy_set_header Accept-Encoding gzip;
         
-        # Jupyter-specific headers
+        # Jupyter-specific headers for base path handling
         proxy_set_header X-Scheme $scheme;
         proxy_set_header X-Script-Name /user/$username/jupyter;
+        proxy_set_header X-Forwarded-Base /user/$username/jupyter;
+        
+        # Additional headers recommended by Jupyter discourse for subpath routing
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Server $http_host;
         
         # Disable buffering
         proxy_buffering off;
@@ -96,6 +123,15 @@ server {
         # Add user context headers
         proxy_set_header X-User $username;
         proxy_set_header X-Service "jupyter";
+        
+        # Handle redirects properly
+        proxy_redirect ~^/(.*)$ /user/$username/jupyter/$1;
+    }
+    
+    # Handle Jupyter root redirects for users
+    location ~ ^/user/([^/]+)/jupyter/?$ {
+        set $username $1;
+        return 302 $scheme://$http_host/user/$username/jupyter/lab;
     }
     
     # Default VSCode fallback (for /vscode/ without user prefix)

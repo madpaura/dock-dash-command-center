@@ -1,0 +1,46 @@
+# Core Flask dependencies
+Flask==3.1.0
+Flask-Cors==5.0.0
+Werkzeug==3.1.3
+
+# Database connectivity
+mysql-connector-python==9.1.0
+
+# Docker management
+docker==7.1.0
+
+# SSH and system monitoring
+psutil==6.1.1
+paramiko==3.4.0
+
+# HTTP requests
+requests==2.32.3
+
+# Configuration and environment
+python-dotenv==1.0.1
+toml==0.10.2
+
+# Logging
+loguru==0.7.3
+
+# Date/time utilities
+python-dateutil==2.9.0.post0
+
+# JSON schema validation
+jsonschema==4.23.0
+jsonschema-specifications==2024.10.1
+
+# Security and utilities
+certifi==2024.12.14
+urllib3==2.3.0
+click==8.1.8
+itsdangerous==2.2.0
+Jinja2==3.1.5
+MarkupSafe==3.0.2
+
+# Task scheduling (if needed)
+schedule==1.2.2
+
+# Basic utilities
+six==1.17.0
+typing_extensions==4.12.2

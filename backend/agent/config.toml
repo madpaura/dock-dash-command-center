@@ -1,0 +1,4 @@
+[server]
+port=8500
+[agent]
+port=8510

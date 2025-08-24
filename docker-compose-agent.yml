@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Agent Service Only (No Database)
+  agent:
+    build:
+      context: ./backend/agent
+      dockerfile: Dockerfile
+    container_name: dock-dash-agent
+    environment:
+      # Agent configuration
+      AGENT_PORT: 8510
+      
+      # Docker configuration
+      DOCKER_IMAGE: gpu-dev-environment
+      DOCKER_TAG: latest
+      DOCKER_HOSTNAME: cxl-dev
+      DOCKER_CPU: 4
+      DOCKER_CPU_PERCENT: 100
+      DOCKER_MEM_LMT: 4g
+      DOCKER_MEM_SWAP: 5g
+      
+      # Code server configuration
+      CODE_DEFAULT_WORKSPACE: /workspace
+      CODE_PORT: 8080
+      CODE_CONFIG_MOUNT: /config
+      SUDO_PASSWORD: abc
+      
+      # Jupyter configuration
+      JUPYTER_PORT: 8888
+      
+      # Paths
+      QVP_BINARY_MOUNT: /opt/qvp
+      GUEST_OS_MOUNT: /opt/os/guestos
+      TOOLS_MOUNT: /opt/tools
+      WORKDIR_TEMPLATE: /home/vishwa/template/
+      WORKDIR_DEPLOY: /home/vishwa/vms/
+      
+      # Manager server (if connecting to external backend)
+      MGMT_SERVER_IP: localhost
+      MGMT_SERVER_PORT: 8500
+    volumes:
+      - /home/vishwa:/home/vishwa
+      - /opt:/opt
+      
+      # Docker socket for container management (REQUIRED)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Agent logs
+      - ./backend/agent/logs:/app/logs
+      # Port manager database (persistent)
+      - ./backend/agent/port_manager.db:/app/port_manager.db
+      # Configuration files
+      - ./backend/config.toml:/app/config.toml
+    network_mode: "host"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8510/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  agent_logs:
+    driver: local
+
+# Networks section removed since using host networking
