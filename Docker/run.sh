@@ -32,10 +32,10 @@ fi
 
 # Run the container
 echo "Starting container with GPU support..."
+    # --gpus all \
 docker run -d \
     --name $CONTAINER_NAME \
-    --gpus all \
-    -p 8080:8080 \
+    -p 8081:8080 \
     -p 8888:8888 \
     -v $(pwd)/workspace:/home/developer/workspace \
     $IMAGE_NAME

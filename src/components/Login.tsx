@@ -106,12 +106,11 @@ export const Login: React.FC = () => {
               </Link>
             </p>
           </div>
-
           <div className="mt-8 p-4 bg-slate-900/30 rounded-lg border border-slate-700">
-            <h3 className="text-sm font-medium text-slate-300 mb-2">Demo Credentials:</h3>
+            <h3 className="text-sm font-medium text-slate-300 mb-2">Need Help ?</h3>
             <div className="text-xs text-slate-400 space-y-1">
-              <p><strong>Admin:</strong> admin@example.com / admin123</p>
-              <p><strong>User:</strong> user@example.com / user123</p>
+              <p><strong>Account related queries:</strong> reach out to admin@qvp.ai</p>
+              <p><strong>Technical issues:</strong> reach out to admin@qvp.ai</p>
             </div>
           </div>
         </div>

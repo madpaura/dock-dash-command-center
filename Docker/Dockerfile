@@ -1,5 +1,6 @@
 # Use NVIDIA's CUDA base image with Ubuntu
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
+# FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
+FROM ubuntu:22.04
 
 # Avoid prompts from apt
 ENV DEBIAN_FRONTEND=noninteractive
