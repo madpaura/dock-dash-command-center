@@ -383,9 +383,10 @@ export const AdminUsers: React.FC = () => {
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteUser(user.id)}
-                          disabled={isDeleting && userToDelete === user.id}
+                          className={`h-8 w-8 p-0 text-destructive hover:text-destructive ${user.role?.toLowerCase() === 'admin' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          onClick={() => { if (user.role?.toLowerCase() !== 'admin') handleDeleteUser(user.id); }}
+                          disabled={(isDeleting && userToDelete === user.id) || user.role?.toLowerCase() === 'admin'}
+                          title={user.role?.toLowerCase() === 'admin' ? 'Admin users cannot be deleted' : undefined}
                         >
                           {isDeleting && userToDelete === user.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
