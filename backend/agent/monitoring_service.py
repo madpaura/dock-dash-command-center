@@ -15,7 +15,10 @@ from loguru import logger
 from dotenv import load_dotenv
 import atexit
 
-load_dotenv(".env", override=True)
+load_dotenv("../.env", override=True)
+manager_ip = os.getenv("MGMT_SERVER_IP")
+manager_port = int(os.getenv("MGMT_SERVER_PORT"))
+url = f"http://{manager_ip}:{manager_port}"
 
 def get_machine_ip():
     """
@@ -43,35 +46,46 @@ def get_machine_ip():
     return local_ip, public_ip
 
 def register_agent(url, agent):
-    """Register the agent with the given URL and agent ID."""
     try:
-        response = requests.post(f"{url}/api/register_agent", json={"agent": f"{agent}"})
-        logger.info(response.json())
+        response = requests.post(f"{url}/api/register_agent", json={"agent_ip": f"{agent}"}, timeout=5)
+        if response.status_code == 200:
+            logger.info(f"Agent {agent} registered successfully")
+            if response.text.strip():
+                logger.info(response.json())
+        else:
+            logger.warning(f"Failed to register agent {agent}: HTTP {response.status_code}")
+    except requests.exceptions.ConnectionError:
+        logger.warning(f"Cannot connect to management server at {url} - server may not be running")
+    except requests.exceptions.Timeout:
+        logger.warning(f"Timeout connecting to management server at {url}")
+    except requests.exceptions.JSONDecodeError:
+        logger.warning(f"Invalid JSON response from management server at {url}")
     except Exception as e:
-        logger.error(e)
+        logger.error(f"Error registering agent: {e}")
 
 def unregister_agent(url, agent):
-    """Unregister the agent with the given URL and agent ID."""
     try:
-        response = requests.post(f"{url}/api/unregister_agent", json={"agent": f"{agent}"})
-        logger.info(response.json())
+        response = requests.post(f"{url}/api/unregister_agent", json={"agent_ip": f"{agent}"}, timeout=5)
+        if response.status_code == 200:
+            logger.info(f"Agent {agent} unregistered successfully")
+            if response.text.strip():
+                logger.info(response.json())
+        else:
+            logger.warning(f"Failed to unregister agent {agent}: HTTP {response.status_code}")
+    except requests.exceptions.ConnectionError:
+        logger.warning(f"Cannot connect to management server at {url} - server may not be running")
+    except requests.exceptions.Timeout:
+        logger.warning(f"Timeout connecting to management server at {url}")
+    except requests.exceptions.JSONDecodeError:
+        logger.warning(f"Invalid JSON response from management server at {url}")
     except Exception as e:
-        logger.error(e)
+        logger.error(f"Error unregistering agent: {e}")
 
 def register_agent_with_manager():
-    """Register the agent every 5 minutes."""
-    load_dotenv("../.env", override=True)
-    manager_ip = os.getenv("MGMT_SERVER_IP")
-    manager_port = int(os.getenv("MGMT_SERVER_PORT")) + 1
-    url = f"http://{manager_ip}:{manager_port}"
     localip, publicip = get_machine_ip()
     register_agent(url, localip)
 
 def on_exit():
-    load_dotenv("../.env", override=True)
-    manager_ip = os.getenv("MGMT_SERVER_IP")
-    manager_port = int(os.getenv("MGMT_SERVER_PORT")) + 1
-    url = f"http://{manager_ip}:{manager_port}"    
     localip, publicip = get_machine_ip()
     unregister_agent(url, localip)
 

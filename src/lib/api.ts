@@ -2,7 +2,7 @@
  * API service for communicating with the backend
  */
 
-const API_BASE_URL = 'http://localhost:8501/api';
+const API_BASE_URL = 'http://localhost:8500/api';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -62,7 +62,6 @@ export const authApi = {
     });
     
     const data = await response.json();
-    console.log('Raw login response:', data);
     
     if (!response.ok) {
       return {
@@ -113,7 +112,6 @@ export const authApi = {
     });
     
     const data = await response.json();
-    console.log('Raw session validation response:', data);
     
     if (!response.ok) {
       return {

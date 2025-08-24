@@ -11,15 +11,15 @@ from utils.helpers import read_agents_file
 
 class DockerService:
     
-    def __init__(self, db: UserDatabase, agent_service: AgentService):
+    def __init__(self, db: UserDatabase, agent_service: AgentService, agent_port: int):
         self.db = db
         self.agent_service = agent_service
+        self.agent_port = agent_port
     
     def get_docker_images(self, server_id: Optional[str] = None) -> Dict[str, Any]:
         try:
             # Get list of available agents
             agents = read_agents_file()
-            query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
             
             if server_id:
                 # Query specific server
@@ -31,7 +31,7 @@ class DockerService:
                         'timestamp': time.time()
                     }
                 
-                result = self.agent_service.query_agent_docker_images(server_id, query_port)
+                result = self.agent_service.query_agent_docker_images(server_id, self.agent_port)
                 if result:
                     return {
                         'servers': [result],
@@ -47,7 +47,7 @@ class DockerService:
                     }
             else:
                 # Query all servers
-                results = self.agent_service.query_multiple_agents_docker_images(agents, query_port)
+                results = self.agent_service.query_multiple_agents_docker_images(agents, self.agent_port)
                 
                 return {
                     'servers': results,
@@ -67,12 +67,11 @@ class DockerService:
     def get_docker_image_details(self, server_id: str, image_id: str) -> Dict[str, Any]:
         try:
             agents = read_agents_file()
-            query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
             if server_id not in agents:
                 return {'error': 'Server not found'}
             
             # Query image details from specific server
-            result = self.agent_service.query_agent_docker_image_details(server_id, image_id, query_port)
+            result = self.agent_service.query_agent_docker_image_details(server_id, image_id, self.agent_port)
             
             if result:
                 return result
@@ -95,10 +94,9 @@ class DockerService:
         try:
             # Get list of available agents
             agents = read_agents_file()
-            query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
             
             # Query servers for basic info
-            servers_resources = self.agent_service.query_available_agents(agents, query_port)
+            servers_resources = self.agent_service.query_available_agents(agents, self.agent_port)
             
             # Create server list with status information
             servers_list = []

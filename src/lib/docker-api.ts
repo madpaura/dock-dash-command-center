@@ -2,7 +2,7 @@
  * Docker images management API
  */
 
-const API_BASE_URL = 'http://localhost:8501/api';
+const API_BASE_URL = 'http://localhost:8500/api';
 
 interface ApiResponse<T> {
   success: boolean;

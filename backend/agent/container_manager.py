@@ -22,45 +22,6 @@ logger.add("agent_service.log", rotation="500 MB", retention="10 days", level="I
 # Load environment variables
 load_dotenv(".env", override=True)
 
-def require_admin_auth():
-    auth_header = request.headers.get('Authorization')
-    logger.info(f"Authorization header: {auth_header}")
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'success': False, 'error': 'Authorization required'}), 401
-    
-    session_token = auth_header.split(' ')[1]
-
-    logger.info(f"Session token: {session_token}")
-    
-    # Allow admin_approval token for container creation during user approval
-    if session_token == 'admin_approval':
-        logger.info("Using admin_approval token for container creation")
-        return None
-    
-    try:
-        import requests
-        ip=os.getenv('MGMT_SERVER_IP', 'http://localhost:5000')
-        port= int(os.getenv('MGMT_SERVER_PORT', '8500')) + 1
-        url=f"http://{ip}:{port}/api/validate-session"
-        logger.info(f"Validation URL: {url}")
-        auth_response = requests.get(
-            url,
-            headers={'Authorization': f'Bearer {session_token}'},
-            timeout=5
-        )
-        logger.info(f"Validation response: {auth_response.json()}")
-        if auth_response.status_code != 200:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-        
-        session_data = auth_response.json()
-        if not session_data.get('is_admin'):
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
-        
-        return None
-    except Exception as e:
-        logger.error(f"Authentication failed: {str(e)}")
-        return jsonify({'success': False, 'error': 'Authentication service unavailable'}), 503
-
 class DockerContainerManager:
     def __init__(self):
         """Initialize Docker client and lock"""
@@ -416,10 +377,6 @@ def init_backend_routes(app):
 
     @app.route("/api/containers/create", methods=["POST"])
     def create_container():
-        # auth_error = require_admin_auth()
-        # if auth_error:
-        #     return auth_error
-        
         data = request.get_json()
         user = data["user"]
         session_token = data["session_token"]
@@ -572,11 +529,6 @@ def init_backend_routes(app):
 
     @app.route("/api/containers/<string:container_id>/delete", methods=["POST"])
     def delete_container(container_id):
-        # Validate admin access
-        # auth_error = require_admin_auth()
-        # if auth_error:
-        #     return auth_error
-        
         data = request.get_json() or {}
         result = docker_manager.delete_container(container_id, data.get('user_id'),
                                                 data.get('username'))

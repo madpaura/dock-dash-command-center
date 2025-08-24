@@ -12,64 +12,44 @@ from models.docker import DockerImage, DockerImagesResponse, DockerImageDetailsR
 
 class AgentService:
     
-    def __init__(self, default_port: int = 5000, default_timeout: int = 5):
-        self.default_port = default_port
-        self.default_timeout = default_timeout
+    def __init__(self, agent_port: int = 5000, timeout: int = 5):
+        self.agent_port = agent_port
+        self.timeout = timeout
 
-    def query_agent_resources(self, agent_ip: str, agent_port: int = None, timeout: int = None) -> Optional[Dict[str, Any]]:
-        if agent_port is None:
-            agent_port = self.default_port
-        if timeout is None:
-            timeout = self.default_timeout
-            
+    def query_agent_resources(self, agent_ip: str) -> Optional[Dict[str, Any]]:
         try:
-            logger.debug(f"Querying resources from : {agent_ip} : {agent_port}")
+            logger.debug(f"Querying resources from : {agent_ip} : {self.agent_port}")
 
-            url = f"http://{agent_ip}:{agent_port}/get_resources"
+            url = f"http://{agent_ip}:{self.agent_port}/get_resources"
 
             # Use shorter timeout for faster failure detection
-            response = requests.get(url, timeout=timeout)
+            response = requests.get(url, timeout =self.timeout)
             if response.status_code == 200:
-                logger.debug(f"Successfully queried resources from agent {agent_ip}:{agent_port}, response: {response.json()}")
+                logger.debug(f"Successfully queried resources from agent {agent_ip}:{self.agent_port}, response: {response.json()}")
                 return response.json()
             else:
-                logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")
+                logger.warning(f"Agent {agent_ip}:{self.agent_port} returned status code {response.status_code}")
                 return None
         except requests.exceptions.Timeout:
-            logger.warning(f"Timeout querying agent {agent_ip}:{agent_port}")
+            logger.warning(f"Timeout querying agent {agent_ip}:{self.agent_port}")
             return None
         except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection failed to agent {agent_ip}:{agent_port}")
+            logger.warning(f"Connection failed to agent {agent_ip}:{self.agent_port}")
             return None
         except Exception as e:
-            logger.error(f"Error querying agent {agent_ip}:{agent_port}: {e}")
+            logger.error(f"Error querying agent {agent_ip}:{self.agent_port}: {e}")
             return None
 
-    def query_single_agent_with_id(self, agent_ip: str, port: int = None) -> Optional[Dict[str, Any]]:
-        """
-        Helper function to query a single agent and return with server_id.
-        
-        Args:
-            agent_ip: IP address of the agent
-            port: Port of the agent
-            
-        Returns:
-            Optional[Dict[str, Any]]: Resource information with server_id or None
-        """
-        if port is None:
-            port = self.default_port
-            
-        resources = self.query_agent_resources(agent_ip, agent_port=port)
+    def query_single_agent_with_id(self, agent_ip: str) -> Optional[Dict[str, Any]]:
+        resources = self.query_agent_resources(agent_ip)
         if resources:
             resources["server_id"] = agent_ip
             return resources
         return None
 
-    def query_available_agents(self, server_list: List[str], port: int = None, max_workers: int = 10, timeout_per_agent: int = None) -> List[Dict[str, Any]]:
-        if port is None:
-            port = self.default_port
+    def query_available_agents(self, server_list: List[str], max_workers: int = 10, timeout_per_agent: int = None) -> List[Dict[str, Any]]:
         if timeout_per_agent is None:
-            timeout_per_agent = self.default_timeout
+            timeout_per_agent = self.timeout
             
         if not server_list:
             logger.warning("No servers provided to query")
@@ -81,7 +61,7 @@ class AgentService:
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_server = {
-                executor.submit(self.query_single_agent_with_id, server_ip, port): server_ip 
+                executor.submit(self.query_single_agent_with_id, server_ip): server_ip 
                 for server_ip in server_list
             }
             
@@ -100,60 +80,52 @@ class AgentService:
         logger.info(f"Successfully queried {len(available_agents)} out of {len(server_list)} agents")
         return available_agents
 
-    def query_agent_docker_images(self, agent_ip: str, agent_port: int = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
-        if agent_port is None:
-            agent_port = self.default_port
-            
+    def query_agent_docker_images(self, agent_ip: str, timeout: int = 10) -> Optional[Dict[str, Any]]:
         try:
-            logger.debug(f"Querying Docker images from: {agent_ip}:{agent_port}")
+            logger.debug(f"Querying Docker images from: {agent_ip}:{self.agent_port}")
             
-            url = f"http://{agent_ip}:{agent_port}/get_docker_images"
-            response = requests.get(url, timeout=timeout)
+            url = f"http://{agent_ip}:{self.agent_port}/get_docker_images"
+            response = requests.get(url, timeout =self.timeout)
             
             if response.status_code == 200:
                 return response.json()
             else:
-                logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")
+                logger.warning(f"Agent {agent_ip}:{self.agent_port} returned status code {response.status_code}")
                 return None
         except requests.exceptions.Timeout:
-            logger.warning(f"Timeout querying Docker images from agent {agent_ip}:{agent_port}")
+            logger.warning(f"Timeout querying Docker images from agent {agent_ip}:{self.agent_port}")
             return None
         except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection failed to agent {agent_ip}:{agent_port}")
+            logger.warning(f"Connection failed to agent {agent_ip}:{self.agent_port}")
             return None
         except Exception as e:
-            logger.error(f"Error querying Docker images from agent {agent_ip}:{agent_port}: {e}")
+            logger.error(f"Error querying Docker images from agent {agent_ip}:{self.agent_port}: {e}")
             return None
 
-    def query_agent_docker_image_details(self, agent_ip: str, image_id: str, agent_port: int = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
-        if agent_port is None:
-            agent_port = self.default_port
+    def query_agent_docker_image_details(self, agent_ip: str, image_id: str, timeout: int = 10) -> Optional[Dict[str, Any]]:
             
         try:
-            logger.debug(f"Querying Docker image details for {image_id} from: {agent_ip}:{agent_port}")
+            logger.debug(f"Querying Docker image details for {image_id} from: {agent_ip}:{self.agent_port}")
             
-            url = f"http://{agent_ip}:{agent_port}/get_docker_image_details/{image_id}"
-            response = requests.get(url, timeout=timeout)
+            url = f"http://{agent_ip}:{self.agent_port}/get_docker_image_details/{image_id}"
+            response = requests.get(url, timeout =self.timeout)
             
             if response.status_code == 200:
                 return response.json()
             else:
-                logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")
+                logger.warning(f"Agent {agent_ip}:{self.agent_port} returned status code {response.status_code}")
                 return None
         except requests.exceptions.Timeout:
-            logger.warning(f"Timeout querying Docker image details from agent {agent_ip}:{agent_port}")
+            logger.warning(f"Timeout querying Docker image details from agent {agent_ip}:{self.agent_port}")
             return None
         except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection failed to agent {agent_ip}:{agent_port}")
+            logger.warning(f"Connection failed to agent {agent_ip}:{self.agent_port}")
             return None
         except Exception as e:
-            logger.error(f"Error querying Docker image details from agent {agent_ip}:{agent_port}: {e}")
+            logger.error(f"Error querying Docker image details from agent {agent_ip}:{self.agent_port}: {e}")
             return None
 
     def query_multiple_agents_docker_images(self, server_list: List[str], port: int = None, max_workers: int = 10, timeout_per_agent: int = 10) -> List[Dict[str, Any]]:
-        if port is None:
-            port = self.default_port
-            
         if not server_list:
             logger.warning("No servers provided to query for Docker images")
             return []
@@ -164,7 +136,7 @@ class AgentService:
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_server = {
-                executor.submit(self.query_agent_docker_images, server_ip, port, timeout_per_agent): server_ip 
+                executor.submit(self.query_agent_docker_images, server_ip, timeout_per_agent): server_ip 
                 for server_ip in server_list
             }
             
@@ -184,82 +156,53 @@ class AgentService:
         logger.info(f"Successfully queried Docker images from {len(results)} out of {len(server_list)} agents")
         return results
 
-    def query_agent_container_status(self, agent_ip: str, container_name: str, agent_port: int = None, timeout: int = None) -> Optional[Dict[str, Any]]:
-        """Query agent for real-time container status"""
-        if agent_port is None:
-            agent_port = self.default_port
-        if timeout is None:
-            timeout = self.default_timeout
-            
+    def query_agent_container_status(self, agent_ip: str, container_name: str) -> Optional[Dict[str, Any]]:
         try:
-            logger.debug(f"Querying container status for {container_name} from agent {agent_ip}:{agent_port}")
+            logger.debug(f"Querying container status for {container_name} from agent {agent_ip}:{self.agent_port}")
             
-            url = f"http://{agent_ip}:{agent_port}/api/containers/{container_name}/status"
+            url = f"http://{agent_ip}:{self.agent_port}/api/containers/{container_name}/status"
             
-            response = requests.get(url, timeout=timeout)
+            response = requests.get(url, timeout =self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 logger.debug(f"Container status response: {result}")
                 return result
             else:
-                logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")
+                logger.warning(f"Agent {agent_ip}:{self.agent_port} returned status code {response.status_code}")
                 return None
         except requests.exceptions.Timeout:
-            logger.warning(f"Timeout querying container status from agent {agent_ip}:{agent_port}")
+            logger.warning(f"Timeout querying container status from agent {agent_ip}:{self.agent_port}")
             return None
         except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection failed to agent {agent_ip}:{agent_port}")
+            logger.warning(f"Connection failed to agent {agent_ip}:{self.agent_port}")
             return None
         except Exception as e:
-            logger.error(f"Error querying container status from agent {agent_ip}:{agent_port}: {e}")
+            logger.error(f"Error querying container status from agent {agent_ip}:{self.agent_port}: {e}")
             return None
 
-    def manage_user_container(self, agent_ip: str, container_name: str, action: str, agent_port: int = None, timeout: int = None) -> Optional[Dict[str, Any]]:
-        """Manage user container (start, stop, restart)"""
-        if agent_port is None:
-            agent_port = self.default_port
-        if timeout is None:
-            timeout = self.default_timeout
-            
+    def manage_user_container(self, agent_ip: str, container_name: str, action: str) -> Optional[Dict[str, Any]]:
         try:
-            logger.debug(f"Managing container {container_name} with action {action} on agent {agent_ip}:{agent_port}")
+            logger.debug(f"Managing container {container_name} with action {action} on agent {agent_ip}:{self.agent_port}")
             
-            url = f"http://{agent_ip}:{agent_port}/api/containers/{container_name}/{action}"
+            url = f"http://{agent_ip}:{self.agent_port}/api/containers/{container_name}/{action}"
             
-            response = requests.post(url, timeout=timeout)
+            response = requests.post(url, timeout =self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 logger.debug(f"Container {action} response: {result}")
                 return result
             else:
-                logger.warning(f"Agent {agent_ip}:{agent_port} returned status code {response.status_code}")
+                logger.warning(f"Agent {agent_ip}:{self.agent_port} returned status code {response.status_code}")
                 return None
         except requests.exceptions.Timeout:
-            logger.warning(f"Timeout managing container on agent {agent_ip}:{agent_port}")
+            logger.warning(f"Timeout managing container on agent {agent_ip}:{self.agent_port}")
             return None
         except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection failed to agent {agent_ip}:{agent_port}")
+            logger.warning(f"Connection failed to agent {agent_ip}:{self.agent_port}")
             return None
         except Exception as e:
-            logger.error(f"Error managing container on agent {agent_ip}:{agent_port}: {e}")
+            logger.error(f"Error managing container on agent {agent_ip}:{self.agent_port}: {e}")
             return None
-
 
 # Global instance for backward compatibility
 agent_service = AgentService()
-
-# Backward compatibility functions
-def query_agent_resources(agent_ip: str, agent_port: int = 5000, timeout: int = 5) -> Optional[Dict[str, Any]]:
-    return agent_service.query_agent_resources(agent_ip, agent_port, timeout)
-
-def query_available_agents(server_list: List[str], port: int, max_workers: int = 10, timeout_per_agent: int = 5) -> List[Dict[str, Any]]:
-    return agent_service.query_available_agents(server_list, port, max_workers, timeout_per_agent)
-
-def query_agent_docker_images(agent_ip: str, agent_port: int = 5000, timeout: int = 10) -> Optional[Dict[str, Any]]:
-    return agent_service.query_agent_docker_images(agent_ip, agent_port, timeout)
-
-def query_agent_docker_image_details(agent_ip: str, image_id: str, agent_port: int = 5000, timeout: int = 10) -> Optional[Dict[str, Any]]:
-    return agent_service.query_agent_docker_image_details(agent_ip, image_id, agent_port, timeout)
-
-def query_multiple_agents_docker_images(server_list: List[str], port: int = 5000, max_workers: int = 10, timeout_per_agent: int = 10) -> List[Dict[str, Any]]:
-    return agent_service.query_multiple_agents_docker_images(server_list, port, max_workers, timeout_per_agent)

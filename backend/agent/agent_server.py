@@ -20,11 +20,15 @@ init_stats_routes(app)
 init_backend_routes(app)
 
 if __name__ == '__main__':
-    config_path = os.path.join('.streamlit', 'config.toml')
-    if os.path.exists(config_path):
-        config = toml.load(config_path)
-        port = config.get('server', {}).get('backend_port', 8511)
-    else:
-        port = 8511
+    config_path = os.path.join('..', 'config.toml')
+    port = 8510
     
-    app.run(host='0.0.0.0', port=port)
+    if os.path.exists(config_path):
+        try:
+            config = toml.load(config_path)
+            port = config.get('agent', {}).get('port', port)
+        except Exception as e:
+            print(f"Error loading config: {e}")
+    
+    print(f"Starting agent server on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=False)

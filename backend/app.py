@@ -64,14 +64,15 @@ CORS(app)
 # Initialize database
 db = UserDatabase()
 db.initialize_database()
+agent_port = int(os.getenv('AGENT_PORT', '8510'))
 
 # Initialize services
-agent_service = AgentService()
+agent_service = AgentService(agent_port, 20)
 auth_service = AuthService(db)
 user_service = UserService(db)
-server_service = ServerService(db, agent_service)
+server_service = ServerService(db, agent_service, agent_port)
 ssh_service = SSHService(db)
-docker_service = DockerService(db, agent_service)
+docker_service = DockerService(db, agent_service, agent_port)
 audit_service = AuditService(db)
 cleanup_service = CleanupService(db)
 
@@ -221,7 +222,6 @@ def approve_user(user_id):
     resources = data.get('resources', {})
     admin_username = session.get('username')
     ip_address = get_client_ip(request)
-    agent_port = int(os.getenv('AGENT_PORT', '8510')) + 1
     
     result = user_service.approve_user(user_id, server_id, admin_username, agent_port, ip_address, resources)
     
@@ -278,7 +278,6 @@ def create_admin_user():
         data = request.get_json()
         admin_username = auth_service.get_admin_username_from_token()
         ip_address = get_client_ip(request)
-        agent_port = os.getenv('AGENT_PORT', '8510')
         
         result = user_service.create_admin_user(data, admin_username, agent_port, ip_address)
         
@@ -700,7 +699,7 @@ def execute_cleanup(server_id):
 
 
 # Agent management endpoints (for backward compatibility)
-@app.route('/api/register-agent', methods=['POST'])
+@app.route('/api/register_agent', methods=['POST'])
 def register_agent():
     """Register agent endpoint."""
     data = request.get_json()
@@ -731,7 +730,7 @@ def register_agent():
         return jsonify({'success': False, 'error': 'Failed to register agent'}), 500
 
 
-@app.route('/api/unregister-agent', methods=['POST'])
+@app.route('/api/unregister_agent', methods=['POST'])
 def unregister_agent():
     """Unregister agent endpoint."""
     data = request.get_json()
@@ -800,7 +799,7 @@ def get_user_services():
                     server_ip = user_service._get_server_ip_from_assignment(server_assignment)
                     if server_ip:
                         # Query agent for real-time container status
-                        container_status_response = agent_service.query_agent_container_status(server_ip, container_name, agent_port=8511)
+                        container_status_response = agent_service.query_agent_container_status(server_ip, container_name)
                         if container_status_response and container_status_response.get('success'):
                             real_container_status = container_status_response.get('status', 'stopped')
                             container_id = container_status_response.get('id')
@@ -870,7 +869,7 @@ def get_user_services():
                 # Try to get server stats from agent
                 server_ip = user_service._get_server_ip_from_assignment(server_assignment)
                 if server_ip:
-                    server_stats = agent_service.query_agent_resources(server_ip, agent_port=8511)
+                    server_stats = agent_service.query_agent_resources(server_ip)
             except Exception as e:
                 logger.debug(f"Could not fetch server stats for user {username}: {e}")
         
@@ -928,7 +927,7 @@ def start_user_container():
             return jsonify({'success': False, 'error': 'Could not determine server IP'}), 400
         
         # Start container via agent
-        result = agent_service.manage_user_container(server_ip, container_name, 'start', agent_port=8511, timeout=20)
+        result = agent_service.manage_user_container(server_ip, container_name, 'start')
         
         if result and result.get('success'):
             # Log the action
@@ -990,7 +989,7 @@ def restart_user_container():
             return jsonify({'success': False, 'error': 'Could not determine server IP'}), 400
         
         # Restart container via agent
-        result = agent_service.manage_user_container(server_ip, container_name, 'restart', agent_port=8511, timeout=20)
+        result = agent_service.manage_user_container(server_ip, container_name, 'restart')
         
         if result and result.get('success'):
             # Log the action
@@ -1092,10 +1091,10 @@ def download_user_logs():
 
 
 if __name__ == '__main__':
-    config_path = os.path.join('.streamlit', 'config.toml')
+    config_path = os.path.join('config.toml')
     if os.path.exists(config_path):
         config = toml.load(config_path)
-        port = config.get('server', {}).get('backend_port', 8500)
+        port = config.get('server', {}).get('port', 8500)
     else:
         port = 8500
     

@@ -574,7 +574,7 @@ class UserService:
             return False
     
     def create_admin_user(self, user_data: Dict[str, Any], admin_username: str = "Admin", 
-                         agent_port: str = "8510", ip_address: Optional[str] = None) -> Dict[str, Any]:
+                         ip_address: Optional[str] = None) -> Dict[str, Any]:
         try:
             # Extract user data
             name = user_data.get('name', '').strip()
@@ -618,7 +618,7 @@ class UserService:
             
             # Set redirect URL if approved
             if create_data['is_approved']:
-                create_data['redirect_url'] = f"http://{server_assignment}:{agent_port}"
+                create_data['redirect_url'] = f"http://{server_assignment}:{self.agent_port}"
             
             # Create user
             if self.db.create_user(create_data):

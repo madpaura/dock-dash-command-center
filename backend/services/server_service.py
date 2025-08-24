@@ -12,9 +12,10 @@ from utils.validators import is_valid_ip
 
 class ServerService:
     
-    def __init__(self, db: UserDatabase, agent_service: AgentService):
+    def __init__(self, db: UserDatabase, agent_service: AgentService, agent_port: int):
         self.db = db
         self.agent_service = agent_service
+        self.agent_port = agent_port
         self.cache = {
             'data': None,
             'timestamp': 0,
@@ -33,10 +34,9 @@ class ServerService:
         # Cache is expired or empty, fetch new data
         logger.info("Fetching fresh server data")
         agents_list = read_agents_file()
-        query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
         
         # Query all agents concurrently (this is the optimization!)
-        servers_resources = self.agent_service.query_available_agents(agents_list, query_port)
+        servers_resources = self.agent_service.query_available_agents(agents_list, self.agent_port)
         
         # Process the data
         servers_data = []
@@ -112,8 +112,7 @@ class ServerService:
     def get_server_resources(self) -> List[Dict[str, Any]]:
         try:
             agents_list = read_agents_file()
-            query_port = int(os.getenv('AGENT_PORT', 8510)) + 1
-            servers = self.agent_service.query_available_agents(agents_list, query_port)
+            servers = self.agent_service.query_available_agents(agents_list, self.agent_port)
             return servers if servers else []
         except Exception as e:
             logger.error(f"Error fetching server resources: {e}")

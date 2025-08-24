@@ -1,4 +1,4 @@
 [server]
+port=8500
+[agent]
 port=8510
-backend_port=8511
-
