@@ -75,7 +75,7 @@ export const AdminSidebar: React.FC = () => {
           <div className="flex justify-center">
             <div 
               className="p-2 rounded-lg bg-sidebar-accent/30 text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors cursor-pointer"
-              title="About Docker Dashboard"
+              title="About GPU Dashboard"
             >
               <Info className="w-6 h-6" />
             </div>
@@ -87,13 +87,13 @@ export const AdminSidebar: React.FC = () => {
               <span className="text-sm font-normal text-sidebar-foreground">About</span>
             </div>
             <div className="text-xs text-sidebar-foreground/70 leading-relaxed">
-              <p className="mb-1">QVP Dashboard v1.0</p>
+              <p className="mb-1">GPU Dashboard v1.0</p>
               <p className="mb-2">Built with React & Flask</p>
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-black dark:bg-white flex items-center justify-center text-white dark:text-black text-xs font-bold hover:animate-spin hover:scale-110 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl">
                   V
                 </div>
-                <span className="hover:text-sidebar-primary transition-colors duration-200">by Vishwa</span>
+                <span className="hover:text-sidebar-primary transition-colors duration-200">by Vishwa (Using AI)</span>
               </div>
             </div>
           </div>

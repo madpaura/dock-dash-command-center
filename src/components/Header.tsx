@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Bell, Settings, User, LogOut } from 'lucide-react';
+import { Bell, Settings, User, LogOut, Cpu } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -13,9 +13,9 @@ export const Header: React.FC = () => {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-black dark:bg-white rounded-lg flex items-center justify-center">
-              <span className="text-white dark:text-black font-bold text-sm">D</span>
+              <Cpu className="w-8 h-8 text-white dark:text-black" />
             </div>
-            <h1 className="text-xl font-bold text-foreground">QVP Dashboard</h1>
+            <h1 className="text-xl font-bold text-foreground">GPU Dashboard</h1>
           </div>
           <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-muted rounded-full">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>

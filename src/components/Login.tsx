@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Container, Eye, EyeOff, LogIn } from 'lucide-react';
+import { Cpu, Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { Link } from 'react-router-dom';
@@ -38,10 +38,10 @@ export const Login: React.FC = () => {
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 bg-black dark:bg-white rounded-2xl flex items-center justify-center">
-                <Container className="w-8 h-8 text-white dark:text-black" />
+                <Cpu className="w-8 h-8 text-white dark:text-black" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-black dark:text-white mb-2">QVP Dashboard</h1>
+            <h1 className="text-2xl font-bold text-black dark:text-white mb-2">GPU Dashboard</h1>
             <p className="text-gray-600 dark:text-gray-400">Sign in to your account</p>
           </div>
 

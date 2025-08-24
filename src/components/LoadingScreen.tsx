@@ -8,7 +8,7 @@ export const LoadingScreen: React.FC = () => {
         <Container className="w-8 h-8 text-white" />
       </div>
       
-      <h1 className="text-2xl font-bold text-white mb-6">QVP Dashboard</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">GPU Dashboard</h1>
       
       <div className="flex flex-col items-center">
         <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4"></div>
