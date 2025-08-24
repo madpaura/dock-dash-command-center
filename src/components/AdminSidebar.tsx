@@ -90,7 +90,7 @@ export const AdminSidebar: React.FC = () => {
               <p className="mb-1">QVP Dashboard v1.0</p>
               <p className="mb-2">Built with React & Flask</p>
               <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold hover:animate-spin hover:scale-110 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl hover:shadow-purple-500/25">
+                <div className="w-5 h-5 rounded-full bg-black dark:bg-white flex items-center justify-center text-white dark:text-black text-xs font-bold hover:animate-spin hover:scale-110 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl">
                   V
                 </div>
                 <span className="hover:text-sidebar-primary transition-colors duration-200">by Vishwa</span>

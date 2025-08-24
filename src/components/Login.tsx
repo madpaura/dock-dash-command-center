@@ -2,7 +2,9 @@
 import React, { useState } from 'react';
 import { Container, Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { Link } from 'react-router-dom';
+import { ThemeToggle } from './ThemeToggle';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -25,36 +27,41 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4">
+      {/* Theme Toggle - Fixed position */}
+      <div className="fixed top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
+      
       <div className="w-full max-w-md">
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 shadow-xl">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
-                <Container className="w-8 h-8 text-white" />
+              <div className="w-16 h-16 bg-black dark:bg-white rounded-2xl flex items-center justify-center">
+                <Container className="w-8 h-8 text-white dark:text-black" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">QVP Dashboard</h1>
-            <p className="text-slate-400">Sign in to your account</p>
+            <h1 className="text-2xl font-bold text-black dark:text-white mb-2">QVP Dashboard</h1>
+            <p className="text-gray-600 dark:text-gray-400">Sign in to your account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Email Address
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all"
                 placeholder="Enter your email"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Password
               </label>
               <div className="relative">
@@ -62,14 +69,14 @@ export const Login: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all pr-12"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -77,7 +84,7 @@ export const Login: React.FC = () => {
             </div>
 
             {error && (
-              <div className="text-red-400 text-sm text-center bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+              <div className="text-red-600 dark:text-red-400 text-sm text-center bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
                 {error}
               </div>
             )}
@@ -85,10 +92,10 @@ export const Login: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-black dark:bg-white text-white dark:text-black py-3 px-4 rounded-lg font-medium hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-black transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin" />
               ) : (
                 <>
                   <LogIn className="w-5 h-5" />
@@ -99,16 +106,16 @@ export const Login: React.FC = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-slate-400">
+            <p className="text-gray-600 dark:text-gray-400">
               Don't have an account?{' '}
-              <Link to="/register" className="text-blue-400 hover:text-blue-300 transition-colors">
+              <Link to="/register" className="text-black dark:text-white hover:text-gray-700 dark:hover:text-gray-300 transition-colors font-medium">
                 Register now
               </Link>
             </p>
           </div>
-          <div className="mt-8 p-4 bg-slate-900/30 rounded-lg border border-slate-700">
-            <h3 className="text-sm font-medium text-slate-300 mb-2">Need Help ?</h3>
-            <div className="text-xs text-slate-400 space-y-1">
+          <div className="mt-8 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Need Help ?</h3>
+            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
               <p><strong>Account related queries:</strong> reach out to admin@qvp.ai</p>
               <p><strong>Technical issues:</strong> reach out to admin@qvp.ai</p>
             </div>
