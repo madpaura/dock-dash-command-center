@@ -201,28 +201,34 @@ export const AdminServers: React.FC = () => {
       value: stats.totalServers, 
       change: stats.totalServersChange, 
       icon: Server, 
-      color: 'blue' as const 
+      color: 'white' as const,
+      isError: stats.totalServers === 0
     },
     { 
       title: 'Online', 
       value: stats.onlineServers, 
       change: stats.onlineServersChange, 
       icon: Monitor, 
-      color: 'green' as const 
+      color: 'white' as const,
+      isError: stats.onlineServers === 0 && stats.totalServers > 0,
+      isWarning: stats.onlineServers < stats.totalServers / 2 && stats.onlineServers > 0
     },
     { 
       title: 'Offline', 
       value: stats.offlineServers, 
       change: stats.offlineServersChange, 
       icon: AlertTriangle, 
-      color: 'red' as const 
+      color: 'gray' as const,
+      isError: stats.offlineServers > 0,
+      isWarning: stats.offlineServers > stats.totalServers / 2
     },
     { 
       title: 'Maintenance', 
       value: stats.maintenanceServers, 
       change: stats.maintenanceServersChange, 
       icon: Settings, 
-      color: 'orange' as const 
+      color: 'gray' as const,
+      isWarning: stats.maintenanceServers > 0
     },
   ] : [];
 
@@ -241,8 +247,8 @@ export const AdminServers: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <AlertTriangle className="w-8 h-8 mx-auto mb-4 text-red-400" />
-          <p className="text-red-400 mb-4">{error}</p>
+          <AlertTriangle className="w-8 h-8 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-400 mb-4">{error}</p>
           <Button onClick={handleRefresh} variant="outline">
             <RefreshCw className="w-4 h-4 mr-2" />
             Retry
@@ -255,11 +261,11 @@ export const AdminServers: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'online':
-        return <Badge className="bg-green-500/10 text-green-400 border-green-500/20">Online</Badge>;
+        return <Badge className="bg-white/10 text-white border-white/20">Online</Badge>;
       case 'offline':
-        return <Badge className="bg-red-500/10 text-red-400 border-red-500/20">Offline</Badge>;
+        return <Badge className="bg-gray-500/10 text-gray-400 border-gray-500/20">Offline</Badge>;
       case 'maintenance':
-        return <Badge className="bg-orange-500/10 text-orange-400 border-orange-500/20">Maintenance</Badge>;
+        return <Badge className="bg-gray-300/10 text-gray-300 border-gray-300/20">Maintenance</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -269,13 +275,13 @@ export const AdminServers: React.FC = () => {
     const iconProps = { className: "w-4 h-4" };
     switch (type) {
       case 'web':
-        return <div className="w-3 h-3 bg-blue-500 rounded-sm" />;
+        return <div className="w-3 h-3 bg-white rounded-sm" />;
       case 'database':
-        return <div className="w-3 h-3 bg-green-500 rounded-sm" />;
+        return <div className="w-3 h-3 bg-gray-300 rounded-sm" />;
       case 'api':
-        return <div className="w-3 h-3 bg-red-500 rounded-sm" />;
+        return <div className="w-3 h-3 bg-gray-500 rounded-sm" />;
       case 'cache':
-        return <div className="w-3 h-3 bg-orange-500 rounded-sm" />;
+        return <div className="w-3 h-3 bg-gray-700 rounded-sm" />;
       default:
         return <div className="w-3 h-3 bg-muted rounded-sm" />;
     }
@@ -378,7 +384,7 @@ export const AdminServers: React.FC = () => {
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        className="h-8 w-8 p-0 text-orange-400 hover:text-orange-300"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-white"
                         onClick={() => handleServerAction(server.id, 'remove_containers')}
                         title="Remove All Running Containers"
                       >
@@ -387,7 +393,7 @@ export const AdminServers: React.FC = () => {
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-white"
                         onClick={() => handleServerAction(server.id, 'cleanup_disk')}
                         title="Clean Up Disk"
                       >
@@ -396,7 +402,7 @@ export const AdminServers: React.FC = () => {
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        className="h-8 w-8 p-0 text-green-400 hover:text-green-300"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-white"
                         onClick={() => handleOpenSSHTerminal(server)}
                         title="SSH Into Server"
                       >
@@ -414,7 +420,7 @@ export const AdminServers: React.FC = () => {
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-white"
                         onClick={() => handleServerAction(server.id, 'delete')}
                         title="Delete Server"
                       >
@@ -483,7 +489,7 @@ export const AdminServers: React.FC = () => {
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleConfirmedDelete}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-gray-800 hover:bg-black text-white"
             >
               Delete Server
             </AlertDialogAction>

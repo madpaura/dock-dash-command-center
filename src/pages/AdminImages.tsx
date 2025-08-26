@@ -181,17 +181,17 @@ export const AdminImages: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Docker Images</h1>
-          <p className="text-muted-foreground">Manage Docker images, layers, and history</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Docker Images</h1>
+            <p className="text-muted-foreground">Manage Docker images, layers, and history</p>
+          </div>
         </div>
-      </div>
 
       {/* Error Alert */}
       {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+        <Alert className="border-gray-600 bg-gray-800/50">
+          <AlertDescription className="text-gray-300">{error}</AlertDescription>
         </Alert>
       )}
 
@@ -201,21 +201,29 @@ export const AdminImages: React.FC = () => {
           title="Total Images"
           value={images.length.toString()}
           icon={HardDrive}
+          color="white"
+          isError={images.length === 0 && !loading}
         />
         <StatCard
           title="Total Size"
           value={formatBytes(totalSize)}
           icon={Layers}
+          color="white"
+          isWarning={totalSize > 10 * 1024 * 1024 * 1024} // Warning if > 10GB
         />
         <StatCard
           title="Latest Tag"
           value={images.filter(img => img.tag === 'latest').length.toString()}
           icon={Hash}
+          color="gray"
+          isWarning={images.filter(img => img.tag === 'latest').length === 0 && images.length > 0}
         />
         <StatCard
           title="Last Updated"
           value="2h ago"
           icon={Calendar}
+          color="gray"
+          isWarning={true} // Always show warning for static "2h ago" value
         />
       </div>
 
@@ -247,7 +255,11 @@ export const AdminImages: React.FC = () => {
                   className="pl-8 w-[250px]"
                 />
               </div>
-              <Button onClick={handleRefresh} disabled={loading || refreshing}>
+              <Button 
+                onClick={handleRefresh} 
+                disabled={loading || refreshing}
+                className="bg-gray-800 hover:bg-black text-white"
+              >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 {refreshing ? 'Refreshing...' : 'Refresh'}
               </Button>
@@ -285,7 +297,7 @@ export const AdminImages: React.FC = () => {
                     </TableCell>
                     <TableCell className="font-medium">{image.repository}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{image.tag}</Badge>
+                      <Badge className="bg-gray-800 text-white border-gray-600">{image.tag}</Badge>
                     </TableCell>
                     <TableCell className="font-mono text-sm">
                       {image.short_id || image.id.substring(0, 20)}...
@@ -297,14 +309,15 @@ export const AdminImages: React.FC = () => {
                         <Button 
                           variant="outline" 
                           size="sm"
+                          className="border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white"
                           onClick={() => console.log('View details for:', image.id)}
                         >
                           <Layers className="h-4 w-4 mr-1" />
                           Details
                         </Button>
                         <Button
-                          variant="destructive"
                           size="sm"
+                          className="bg-gray-800 hover:bg-black text-white"
                           onClick={() => handleDeleteImage(image.id)}
                         >
                           <Trash2 className="h-4 w-4" />
