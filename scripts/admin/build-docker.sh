@@ -14,9 +14,9 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-IMAGE_NAME="dock-dash-backend"
+IMAGE_NAME="gpu-farm-admin"
 IMAGE_TAG="latest"
-DOCKERFILE_PATH="./backend/Dockerfile"
+DOCKERFILE_PATH="../../backend/Dockerfile"
 
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
@@ -34,14 +34,12 @@ fi
 echo -e "${YELLOW}📦 Building Docker image: $IMAGE_NAME:$IMAGE_TAG${NC}"
 echo "Using Dockerfile: $DOCKERFILE_PATH"
 
-# Build with BuildKit for better caching and smaller images
-export DOCKER_BUILDKIT=1
-
+# Build the Docker image (without BuildKit to avoid compatibility issues)
+# Use project root as build context to access nginx directory
 docker build \
     --tag "$IMAGE_NAME:$IMAGE_TAG" \
-    --file "$DOCKERFILE_PATH" \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    ./backend
+    --file "backend/Dockerfile" \
+    ../..
 
 # Check if build was successful
 if [ $? -eq 0 ]; then

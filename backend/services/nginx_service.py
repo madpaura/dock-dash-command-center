@@ -5,36 +5,23 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from loguru import logger
 
-# Add nginx directory to path to import the NginxUserManager
-nginx_path = Path(__file__).parent.parent.parent / "nginx"
+nginx_path = Path(__file__).parent.parent / "nginx"
 sys.path.insert(0, str(nginx_path))
 
-try:
-    from add_user import NginxUserManager
-except ImportError as e:
-    logger.error(f"Failed to import NginxUserManager: {e}")
-    NginxUserManager = None
-
+from add_user import NginxUserManager
 
 class NginxService:
     """Service for managing nginx routing for users."""
-    
     def __init__(self, config_file: Optional[str] = None):
-        self.nginx_path = Path(__file__).parent.parent.parent / "nginx"
-        self.config_file = config_file or str(self.nginx_path / "sites-available" / "dev-services")
-        self.nginx_manager = None
-        
-        if NginxUserManager:
-            self.nginx_manager = NginxUserManager(self.config_file)
-        else:
-            logger.warning("NginxUserManager not available - nginx integration disabled")
-    
+        self.config_file = config_file
+        self.nginx_manager = NginxUserManager(self.config_file)
+        print(self.config_file)
+
     def add_user_route(self, username: str, vscode_server: str, jupyter_server: str) -> Dict[str, Any]:
         """Add nginx routes for a new user."""
         result = {
             'success': False,
             'message': '',
-            'nginx_available': self.nginx_manager is not None,
             'routes_added': False,
             'nginx_reloaded': False
         }
@@ -75,7 +62,6 @@ class NginxService:
         result = {
             'success': False,
             'message': '',
-            'nginx_available': self.nginx_manager is not None,
             'routes_removed': False,
             'nginx_reloaded': False
         }
@@ -132,8 +118,7 @@ class NginxService:
         """List all users configured in nginx."""
         result = {
             'success': False,
-            'users': [],
-            'nginx_available': self.nginx_manager is not None
+            'users': []
         }
         
         if not self.nginx_manager:
@@ -194,8 +179,7 @@ class NginxService:
             'username': username,
             'has_routes': False,
             'vscode_url': None,
-            'jupyter_url': None,
-            'nginx_available': self.nginx_manager is not None
+            'jupyter_url': None
         }
         
         if not self.nginx_manager:

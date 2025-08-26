@@ -1,34 +1,12 @@
 version: '3.8'
 
 services:
-  # MySQL Database
-  mysql:
-    image: mysql:8.0
-    container_name: dock-dash-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: 12qwaszx
-      MYSQL_DATABASE: user_auth_db
-      MYSQL_USER: app_user
-      MYSQL_PASSWORD: app_password
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks:
-      - dock-dash-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
-
   # Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: dock-dash-backend
+    container_name: gpu-dash-admin
     environment:
       # Database configuration
       DB_HOST: mysql
@@ -71,6 +49,9 @@ services:
     ports:
       - "8500:8500"
     volumes:
+      - /home/vishwa:/home/vishwa
+      - /opt:/opt
+      
       # Docker socket for container management
       - /var/run/docker.sock:/var/run/docker.sock
       # Application logs
@@ -79,40 +60,10 @@ services:
       - ./backend/agents.txt:/app/agents.txt
       - ./backend/config.toml:/app/config.toml
     networks:
-      - dock-dash-network
-    depends_on:
-      mysql:
-        condition: service_healthy
-    restart: unless-stopped
+      - host
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
-      interval: 30s
+      interval: 300s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  # Frontend (Optional - if you want to containerize frontend too)
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: dock-dash-frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8500
-    networks:
-      - dock-dash-network
-    depends_on:
-      - backend
-    restart: unless-stopped
-    profiles:
-      - frontend
-
-volumes:
-  mysql_data:
-    driver: local
-
-networks:
-  dock-dash-network:
-    driver: bridge

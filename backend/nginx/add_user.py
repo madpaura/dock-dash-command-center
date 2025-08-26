@@ -35,6 +35,7 @@ class NginxUserManager:
     def __init__(self, config_file: str = None):
         self.config_file = config_file or "sites-available/dev-services"
         self.temp_file = None
+        print(config_file, self.config_file)
         
     def validate_username(self, username: str) -> bool:
         if not username:
@@ -85,6 +86,7 @@ class NginxUserManager:
         return True, ""
     
     def check_user_exists(self, username: str) -> bool:
+        print(self.config_file)
         if not os.path.exists(self.config_file):
             logger.error(f"Configuration file not found: {self.config_file}")
             return False

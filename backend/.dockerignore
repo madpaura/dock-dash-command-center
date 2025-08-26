@@ -6,7 +6,6 @@ __pycache__/
 
 # Virtual environments
 venv/
-env/
 ENV/
 
 # IDE files
@@ -60,3 +59,4 @@ htmlcov/
 
 # Original requirements (we use requirements-docker.txt)
 requirements.txt
+qvp-deploy

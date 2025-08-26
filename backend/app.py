@@ -65,11 +65,12 @@ CORS(app)
 db = UserDatabase()
 db.initialize_database()
 agent_port = int(os.getenv('AGENT_PORT', '8510'))
+nginx_config_file=os.getenv('NGINX_CONFIG_FILE', 'backend/nginx/sites-available/dev-services')
 
 # Initialize services
 agent_service = AgentService(agent_port, 20)
 auth_service = AuthService(db)
-user_service = UserService(db)
+user_service = UserService(db, nginx_config_file, agent_port)
 server_service = ServerService(db, agent_service, agent_port)
 ssh_service = SSHService(db)
 docker_service = DockerService(db, agent_service, agent_port)
@@ -78,8 +79,7 @@ cleanup_service = CleanupService(db)
 
 # Import nginx service
 from services.nginx_service import NginxService
-nginx_service = NginxService()
-
+nginx_service = NginxService(nginx_config_file)
 
 # Authentication endpoints
 @app.route('/api/login', methods=['POST'])

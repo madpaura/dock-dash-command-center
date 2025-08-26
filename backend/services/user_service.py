@@ -11,12 +11,13 @@ from utils.helpers import hash_password, get_client_ip
 from utils.validators import is_valid_email, is_valid_username
 from services.nginx_service import NginxService
 
-
 class UserService:
     
-    def __init__(self, db: UserDatabase):
+    def __init__(self, db: UserDatabase, nginx_config_file: Optional[str] = None, 
+        agent_port: Optional[int] = None):
         self.db = db
-        self.nginx_service = NginxService()
+        self.nginx_service = NginxService(nginx_config_file)
+        self.agent_port = agent_port
     
     def _parse_user_metadata(self, metadata_raw: Optional[str]) -> Dict[str, Any]:
         if not metadata_raw:
@@ -180,7 +181,7 @@ class UserService:
             return []
     
     def approve_user(self, user_id: int, server_assignment: str, admin_username: str, 
-                     agent_port: str = "8511", ip_address: Optional[str] = None, 
+                     agent_port: Optional[int] = None, ip_address: Optional[str] = None, 
                      resources: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         try:
             user = self.db.get_user_by_id(user_id)
@@ -207,7 +208,7 @@ class UserService:
             
             redirect_server = server_assignment
             # Create Docker container for the user
-            container_result = self._create_user_container(user['username'], redirect_server, user_resources, agent_port)
+            container_result = self._create_user_container(user['username'], redirect_server, user_resources, self.agent_port)
             redirect_url=f"NA"
             is_approved = False
             nginx_result = None
@@ -222,7 +223,7 @@ class UserService:
                     'created_at': datetime.now().isoformat()
                 }
                 logger.info(f"Container {container_info.get('name')} assigned to user {user['username']}")
-                redirect_url=f"http://{redirect_server}:{agent_port}"
+                redirect_url=f"http://{redirect_server}:{self.agent_port}"
                 is_approved = True
                 
                 # Add nginx routes for the user using actual allocated ports
@@ -323,7 +324,7 @@ class UserService:
             logger.error(f"Error approving user {user_id}: {e}")
             return {'success': False, 'error': str(e)}
     
-    def _create_user_container(self, username: str, server_ip: str, resources: Dict[str, str], agent_port: str) -> Dict[str, Any]:
+    def _create_user_container(self, username: str, server_ip: str, resources: Dict[str, str], agent_port: int) -> Dict[str, Any]:
         try:
             cpu_cores = self._parse_cpu_spec(resources.get('cpu', '2 cores'))
             memory_limit = self._parse_memory_spec(resources.get('ram', '4GB'))
@@ -339,7 +340,7 @@ class UserService:
             }
             
             # Make API call to create container on the assigned server
-            container_api_url = f"http://{server_ip}:{agent_port}/api/containers/create"
+            container_api_url = f"http://{server_ip}:{self.agent_port}/api/containers/create"
             
             logger.info(f"Creating container for user {username} on server {server_ip}")
             # pass on authorization token
@@ -672,17 +673,14 @@ class UserService:
                 result['message'] = f'Could not determine server IP from assignment: {server_assignment}'
                 return result
             
-            # Get agent port from environment
-            agent_port = int(os.getenv('AGENT_PORT', '5001')) + 1
-            
             # Call the agent's delete container endpoint
             try:
-                delete_url = f"http://{server_ip}:{agent_port}/api/containers/{container_name}/delete"
+                delete_url = f"http://{server_ip}:{self.agent_port}/api/containers/{container_name}/delete"
                 payload = {'user_id': user_id,
                     'username': self.db.get_user_by_id(user_id)['username']
                 }
                 
-                logger.info(f"Attempting to delete container {container_name} on {server_ip}:{agent_port} for user {self.db.get_user_by_id(user_id)['username']}")
+                logger.info(f"Attempting to delete container {container_name} on {server_ip}:{self.agent_port} for user {self.db.get_user_by_id(user_id)['username']}")
                 
                 response = requests.post(
                     delete_url,
@@ -720,9 +718,9 @@ class UserService:
                     result['message'] = f'Server returned status {response.status_code}'
                     
             except requests.exceptions.Timeout:
-                result['message'] = f'Timeout connecting to server {server_ip}:{agent_port}'
+                result['message'] = f'Timeout connecting to server {server_ip}:{self.agent_port}'
             except requests.exceptions.ConnectionError:
-                result['message'] = f'Could not connect to server {server_ip}:{agent_port}'
+                result['message'] = f'Could not connect to server {server_ip}:{self.agent_port}'
             except requests.exceptions.RequestException as e:
                 result['message'] = f'Request failed: {str(e)}'
             except Exception as e:

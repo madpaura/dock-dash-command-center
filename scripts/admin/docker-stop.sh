@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-CONTAINER_NAME="dock-dash-backend"
+CONTAINER_NAME="gpu-farm-admin-instance"
 
 # Function to stop individual container
 stop_individual_container() {

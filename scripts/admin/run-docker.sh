@@ -15,9 +15,9 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-IMAGE_NAME="dock-dash-backend"
+IMAGE_NAME="gpu-farm-admin"
 IMAGE_TAG="latest"
-CONTAINER_NAME="dock-dash-backend"
+CONTAINER_NAME="gpu-farm-admin-instance"
 HOST_PORT="8500"
 CONTAINER_PORT="8500"
 
@@ -43,20 +43,41 @@ if docker ps -a --format 'table {{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
 fi
 
 # Create logs directory if it doesn't exist
-mkdir -p ./backend/logs
+mkdir -p ../../backend/logs
+
+# Check if required config files exist
+if [ ! -f "../../backend/agents.txt" ]; then
+    echo -e "${YELLOW}⚠️  Creating empty agents.txt file${NC}"
+    touch ../../backend/agents.txt
+fi
+
+if [ ! -f "../../backend/config.toml" ]; then
+    echo -e "${YELLOW}⚠️  Creating default config.toml file${NC}"
+    cat > ../../backend/config.toml << 'EOF'
+[server]
+host = "0.0.0.0"
+port = 8500
+
+[database]
+host = "localhost"
+port = 3306
+user = "root"
+password = "12qwaszx"
+name = "user_auth_db"
+EOF
+fi
 
 echo -e "${BLUE}🐳 Starting new container: $CONTAINER_NAME${NC}"
 
 # Run the container
 docker run -d \
     --name "$CONTAINER_NAME" \
-    --restart unless-stopped \
-    -p "$HOST_PORT:$CONTAINER_PORT" \
+    --network host \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "$(pwd)/backend/logs:/app/logs" \
-    -v "$(pwd)/backend/agents.txt:/app/agents.txt" \
-    -v "$(pwd)/backend/config.toml:/app/config.toml" \
-    -e DB_HOST=host.docker.internal \
+    -v "$(pwd)/../../backend/logs:/app/logs" \
+    -v "$(pwd)/../../backend/agents.txt:/app/agents.txt" \
+    -v "$(pwd)/../../backend/config.toml:/app/config.toml" \
+    -e DB_HOST=localhost \
     -e DB_PORT=3306 \
     -e DB_USER=root \
     -e DB_PASSWORD=12qwaszx \
