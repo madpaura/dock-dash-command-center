@@ -50,7 +50,6 @@ echo -e "${BLUE}🐳 Starting new agent container: $CONTAINER_NAME${NC}"
 # Run the container
 docker run -d \
     --name "$CONTAINER_NAME" \
-    --restart unless-stopped \
     -p "$HOST_PORT:$CONTAINER_PORT" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$(pwd)/backend/agent/logs:/app/logs" \

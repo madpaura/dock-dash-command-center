@@ -210,6 +210,10 @@ upstream jupyter_user1 {
 
 
 
+
+
+
+
 # likitha
 upstream vscode_likitha {
     server 192.168.1.21:9000 max_fails=3 fail_timeout=30s;
@@ -231,5 +235,3 @@ upstream jupyter_likitha {
     zone jupyter_likitha 64k;
     keepalive 32;
 }
-
-

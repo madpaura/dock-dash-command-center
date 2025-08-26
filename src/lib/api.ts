@@ -733,6 +733,44 @@ export interface LogsResponse {
   error?: string;
 }
 
+export interface GPUInfo {
+  available: boolean;
+  count?: number;
+  gpus?: Array<{
+    index: number;
+    name: string;
+    utilization: number;
+    memory_used: number;
+    memory_total: number;
+    memory_utilization: number;
+    temperature: number;
+    power_draw: number;
+    power_limit: number;
+  }>;
+  total_memory?: number;
+  total_memory_used?: number;
+  avg_utilization?: number;
+  avg_memory_utilization?: number;
+  error?: string;
+}
+
+export interface ServerStats {
+  cpu_count: number;
+  total_memory: number;
+  host_cpu_used: number;
+  host_memory_used: number;
+  total_disk: number;
+  used_disk: number;
+  uptime: string;
+  docker_instances: number;
+  running_containers: number;
+  allocated_cpu: number;
+  allocated_memory: number;
+  remaining_cpu: number;
+  remaining_memory: number;
+  gpu_info?: GPUInfo;
+}
+
 export interface UserServicesData {
   success: boolean;
   data: {
@@ -749,7 +787,7 @@ export interface UserServicesData {
       intellij: ServiceInfo;
       terminal: ServiceInfo;
     };
-    server_stats: any;
+    server_stats: ServerStats;
     nginx_available: boolean;
   };
 }

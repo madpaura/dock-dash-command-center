@@ -13,6 +13,8 @@ import os, sys
 from loguru import logger
 from dotenv import load_dotenv
 import atexit
+import subprocess
+import json
 
 load_dotenv(".env", override=True)
 manager_ip = os.getenv("MGMT_SERVER_IP")
@@ -97,6 +99,61 @@ _resource_cache = {
     'cache_duration': 10  # Cache for 10 seconds
 }
 
+def get_gpu_info():
+    """
+    Get GPU information using nvidia-smi if available.
+    Returns GPU usage, memory usage, temperature, and other stats.
+    """
+    try:
+        # Try to get GPU info using nvidia-smi
+        result = subprocess.run([
+            'nvidia-smi', 
+            '--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
+            '--format=csv,noheader,nounits'
+        ], capture_output=True, text=True, timeout=5)
+        
+        if result.returncode == 0:
+            gpus = []
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    parts = [part.strip() for part in line.split(',')]
+                    if len(parts) >= 8:
+                        gpu_info = {
+                            'index': int(parts[0]),
+                            'name': parts[1],
+                            'utilization': float(parts[2]) if parts[2] != '[Not Supported]' else 0,
+                            'memory_used': float(parts[3]) if parts[3] != '[Not Supported]' else 0,
+                            'memory_total': float(parts[4]) if parts[4] != '[Not Supported]' else 0,
+                            'temperature': float(parts[5]) if parts[5] != '[Not Supported]' else 0,
+                            'power_draw': float(parts[6]) if parts[6] != '[Not Supported]' else 0,
+                            'power_limit': float(parts[7]) if parts[7] != '[Not Supported]' else 0
+                        }
+                        gpu_info['memory_utilization'] = (gpu_info['memory_used'] / gpu_info['memory_total'] * 100) if gpu_info['memory_total'] > 0 else 0
+                        gpus.append(gpu_info)
+            
+            return {
+                'available': True,
+                'count': len(gpus),
+                'gpus': gpus,
+                'total_memory': sum(gpu['memory_total'] for gpu in gpus),
+                'total_memory_used': sum(gpu['memory_used'] for gpu in gpus),
+                'avg_utilization': sum(gpu['utilization'] for gpu in gpus) / len(gpus) if gpus else 0,
+                'avg_memory_utilization': sum(gpu['memory_utilization'] for gpu in gpus) / len(gpus) if gpus else 0
+            }
+        else:
+            logger.debug("nvidia-smi command failed or returned non-zero exit code")
+            return {'available': False, 'error': 'nvidia-smi failed'}
+            
+    except subprocess.TimeoutExpired:
+        logger.debug("nvidia-smi command timed out")
+        return {'available': False, 'error': 'nvidia-smi timeout'}
+    except FileNotFoundError:
+        logger.debug("nvidia-smi not found - no NVIDIA GPU or drivers not installed")
+        return {'available': False, 'error': 'nvidia-smi not found'}
+    except Exception as e:
+        logger.debug(f"Error getting GPU info: {e}")
+        return {'available': False, 'error': str(e)}
+
 def get_agent_resources():
     """
     Fetch server resource information (CPU, memory, Docker instances, etc.).
@@ -127,6 +184,9 @@ def get_agent_resources():
     uptime_hours = (uptime_seconds % (24 * 3600)) // 3600
     uptime_minutes = (uptime_seconds % 3600) // 60
     uptime = f"{int(uptime_days)}d {int(uptime_hours)}h {int(uptime_minutes)}m"
+
+    # Get GPU information
+    gpu_info = get_gpu_info()
 
     # Initialize Docker-related variables
     docker_instances = 0
@@ -201,6 +261,7 @@ def get_agent_resources():
         "allocated_memory": round(allocated_memory, 2),
         "remaining_cpu": remaining_cpu,
         "remaining_memory": round(remaining_memory, 2),
+        "gpu_info": gpu_info,  # Add GPU information
     }
     
     # Update cache

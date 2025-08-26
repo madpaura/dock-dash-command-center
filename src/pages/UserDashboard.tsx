@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Cpu, HardDrive, MemoryStick, RefreshCw, Play, RotateCcw } from 'lucide-react'; 
+import { Terminal, RefreshCw, Play, RotateCcw } from 'lucide-react'; 
 import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
-import { ProgressBar } from '../components/ui/progress-bar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../components/ui/tooltip';
 import { StatusBar } from '../components/StatusBar';
 import { LogsWindow } from '../components/LogsWindow';
-import { userServicesApi, UserServicesDataFlat } from '../lib/api';
+import { ResourceMonitor } from '../components/ResourceMonitor';
+import { userServicesApi, UserServicesDataFlat, GPUInfo } from '../lib/api';
 import { useSidebar } from '../hooks/useSidebar';
 
 interface SystemStats {
@@ -84,11 +84,11 @@ export const UserDashboard: React.FC = () => {
             const serverStats = userData.server_stats;
             setStats({
               cpu: {
-                usage: serverStats.allocated_cpu || 0,
+                usage: serverStats.host_cpu_used || 0,
                 cores: serverStats.cpu_count || 0
               },
               memory: {
-                used: serverStats.allocated_memory || 0,
+                used: serverStats.host_memory_used || 0,
                 total: serverStats.total_memory || 0,
                 percentage: serverStats.total_memory > 0 ? 
                   (serverStats.host_memory_used / serverStats.total_memory) * 100 : 0
@@ -176,11 +176,11 @@ export const UserDashboard: React.FC = () => {
           const serverStats = userData.server_stats;
           setStats({
             cpu: {
-              usage: serverStats.allocated_cpu || 0,
+              usage: serverStats.host_cpu_used || 0,
               cores: serverStats.cpu_count || 0
             },
             memory: {
-              used: serverStats.allocated_memory || 0,
+              used: serverStats.host_memory_used || 0,
               total: serverStats.total_memory || 0,
               percentage: serverStats.total_memory > 0 ? 
                 (serverStats.host_memory_used / serverStats.total_memory) * 100 : 0
@@ -385,68 +385,20 @@ export const UserDashboard: React.FC = () => {
         })}
       </div>
 
-      {/* System Statistics */}
-      <div className="space-y-6 mb-6">
-        {/* Container Statistics */}
-        <div>
-          <h3 className="text-lg font-semibold text-foreground mb-3">Container Resources</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <Cpu className="w-4 h-4 text-blue-500" />
-                <span className="text-xs text-muted-foreground">CPU Usage</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{stats.cpu.usage} cores</span>
-                  <span className="text-xs text-muted-foreground">{((stats.cpu.usage / stats.cpu.cores) * 100).toFixed(1)}%</span>
-                </div>
-                <ProgressBar 
-                  value={stats.cpu.usage} 
-                  max={stats.cpu.cores} 
-                  size="md"
-                />
-              </div>
-            </div>
-
-            <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <MemoryStick className="w-4 h-4 text-purple-500" />
-                <span className="text-xs text-muted-foreground">RAM Usage</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{stats.memory.used}/{stats.memory.total} GiB</span>
-                  <span className="text-xs text-muted-foreground">{stats.memory.percentage.toFixed(1)}%</span>
-                </div>
-                <ProgressBar 
-                  value={stats.memory.percentage} 
-                  max={100} 
-                  size="md"
-                />
-              </div>
-            </div>
-
-            <div className="bg-card rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <HardDrive className="w-4 h-4 text-yellow-500" />
-                <span className="text-xs text-muted-foreground">Home Disk</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{stats.disk.used}/{stats.disk.total} GiB</span>
-                  <span className="text-xs text-muted-foreground">{stats.disk.percentage.toFixed(1)}%</span>
-                </div>
-                <ProgressBar 
-                  value={stats.disk.percentage} 
-                  max={100} 
-                  size="md"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
+      {/* Resource Monitoring */}
+      <div className="mb-6">
+        <ResourceMonitor
+          cpuUsage={stats.cpu.usage}
+          cpuCores={stats.cpu.cores}
+          memoryUsed={stats.memory.used}
+          memoryTotal={stats.memory.total}
+          memoryPercentage={stats.memory.percentage}
+          diskUsed={stats.disk.used}
+          diskTotal={stats.disk.total}
+          diskPercentage={stats.disk.percentage}
+          gpuInfo={userServices?.server_stats?.gpu_info}
+          isLoading={loading}
+        />
       </div>
 
       {/* Logs Section */}

@@ -381,7 +381,6 @@ def init_backend_routes(app):
         user = data["user"]
         session_token = data["session_token"]
 
-        load_dotenv(".env", override=True)
         env = {
             "PUID": os.geteuid(),
             "PGID": os.getegid(),
