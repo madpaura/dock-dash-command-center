@@ -56,12 +56,26 @@ cert: false' > /home/developer/.config/code-server/config.yaml
 # 8888 for Jupyter Server
 EXPOSE 8080 8888
 
-# Create startup script
+# Create startup script with dynamic base URL support
 RUN echo '#!/bin/bash\n\
 echo "Starting VS Code Server on port 8080..."\n\
 code-server &\n\
 echo "Starting Jupyter Server on port 8888..."\n\
-jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''\n\
+# Use JUPYTER_BASE_URL environment variable if set, otherwise default\n\
+JUPYTER_BASE_URL=${JUPYTER_BASE_URL:-""}\n\
+if [ -n "$JUPYTER_BASE_URL" ]; then\n\
+    echo "Starting Jupyter with base URL: $JUPYTER_BASE_URL"\n\
+    jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root \\\n\
+        --ServerApp.token='"'"''"'"' --ServerApp.password='"'"''"'"' \\\n\
+        --ServerApp.base_url="$JUPYTER_BASE_URL" \\\n\
+        --ServerApp.allow_origin="*" \\\n\
+        --ServerApp.disable_check_xsrf=True \\\n\
+        --LabApp.base_url="$JUPYTER_BASE_URL"\n\
+else\n\
+    echo "Starting Jupyter with default configuration"\n\
+    jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root \\\n\
+        --ServerApp.token='"'"''"'"' --ServerApp.password='"'"''"'"'\n\
+fi\n\
 wait' > start.sh && chmod +x start.sh
 
 CMD ["./start.sh"]

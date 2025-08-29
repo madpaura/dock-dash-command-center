@@ -118,7 +118,7 @@ upstream {service_type}_{username} {{
     keepalive 32;
 }}"""
     
-    def add_routing_rule(self, content: str, service_type: str, username: str) -> str:
+    def add_routing_rule(self, content: str, service_type: str, username: str, server_address: str) -> str:
         if service_type == "vscode":
             # Find the VSCode routing section and add new rule
             # Look for the comment "# Map users to their upstreams" in VSCode section
@@ -126,21 +126,25 @@ upstream {service_type}_{username} {{
             replacement = f'\\1        if ($user = "{username}") {{\n            proxy_pass http://vscode_{username}/$path$is_args$args;\n        }}\n        \n'
         else:  # jupyter
             # Find the Jupyter routing section and add new rule
-            # Look for the comment "# Map users to their upstreams" in Jupyter section
+            # Look for the comment "# Jupyter routing" in Jupyter section
             # We need to find the second occurrence (Jupyter section)
             lines = content.split('\n')
             vscode_section_found = False
             for i, line in enumerate(lines):
-                if '# Map users to their upstreams' in line:
-                    if vscode_section_found:
-                        # This is the Jupyter section
-                        lines.insert(i + 1, f'        if ($user = "{username}") {{')
-                        lines.insert(i + 2, f'            proxy_pass http://jupyter_{username}/$path$is_args$args;')
-                        lines.insert(i + 3, '        }')
-                        lines.insert(i + 4, '        ')
-                        return '\n'.join(lines)
-                    else:
-                        vscode_section_found = True
+                if '# Jupyter routing' in line:
+                    lines.insert(i + 1, f'    location /user/{username}/jupyter/')
+                    lines.insert(i + 2, '    {')
+                    lines.insert(i + 3, f'        proxy_pass http://{server_address};')
+                    lines.insert(i + 4, '        proxy_set_header Host $host;')
+                    lines.insert(i + 5, '        proxy_set_header X-Real-IP $remote_addr;')
+                    lines.insert(i + 6, '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;')
+                    lines.insert(i + 7, '        proxy_set_header X-Forwarded-Proto $scheme;')
+                    lines.insert(i + 8, '        proxy_http_version 1.1;')
+                    lines.insert(i + 9, '        proxy_set_header Upgrade $http_upgrade;')
+                    lines.insert(i + 10, '        proxy_set_header Connection "upgrade";')
+                    lines.insert(i + 11, '        proxy_read_timeout 86400;')
+                    lines.insert(i + 12, '    }')
+                    return '\n'.join(lines)
             return content
         
         return re.sub(pattern, replacement, content, count=1)
@@ -167,8 +171,8 @@ upstream {service_type}_{username} {{
             content += jupyter_upstream + "\n"
             
             # Add routing rules
-            content = self.add_routing_rule(content, "vscode", username)
-            content = self.add_routing_rule(content, "jupyter", username)
+            content = self.add_routing_rule(content, "vscode", username, vscode_server)
+            content = self.add_routing_rule(content, "jupyter", username, jupyter_server)
             
             # Write updated configuration
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.tmp') as temp_f:
@@ -282,9 +286,10 @@ upstream {service_type}_{username} {{
             with open(self.config_file, 'r') as f:
                 lines = f.readlines()
             
-            # Remove upstream blocks and routing rules
+            # Remove upstream blocks and location blocks
             new_lines = []
             skip_block = False
+            skip_location_block = False
             i = 0
             
             while i < len(lines):
@@ -300,8 +305,16 @@ upstream {service_type}_{username} {{
                     skip_block = False
                     i += 1
                     continue
-                elif not skip_block:
-                    # Check for routing rules
+                # Check for Jupyter location block start
+                elif f"location /user/{username}/jupyter/" in line:
+                    skip_location_block = True
+                    # Don't add this line to new_lines
+                elif skip_location_block and line.strip() == "}":
+                    skip_location_block = False
+                    i += 1
+                    continue
+                elif not skip_block and not skip_location_block:
+                    # Check for old routing rules (if any still exist)
                     if f'if ($user = "{username}")' in line:
                         # Skip this if block (3 lines)
                         i += 3

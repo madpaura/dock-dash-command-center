@@ -387,7 +387,9 @@ def init_backend_routes(app):
             "TZ": "Etc/UTC",
             "DEFAULT_WORKSPACE": os.getenv("DEFAULT_WORKSPACE", "/config/workspace"),
             "SUDO_PASSWORD": os.getenv("SUDO_PASSWORD", "abc"),
-            # Fix Jupyter subpath routing - set base path for nginx reverse proxy
+            # Set Jupyter base URL for proper subpath routing in multi-user environment
+            "JUPYTER_BASE_URL": f"/user/{user}/jupyter",
+            # Legacy JupyterHub compatibility (kept for backward compatibility)
             "JUPYTERHUB_SERVICE_PREFIX": f"/user/{user}/jupyter/",
         }
 

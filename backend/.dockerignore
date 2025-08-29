@@ -60,3 +60,4 @@ htmlcov/
 # Original requirements (we use requirements-docker.txt)
 requirements.txt
 qvp-deploy
+electron-client

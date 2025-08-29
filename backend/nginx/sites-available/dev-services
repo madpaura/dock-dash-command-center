@@ -1,10 +1,10 @@
 # Multi-user code-server configuration
 # Each user gets their own code-server instance on different ports
 
-# Default code-server (fallback)
-upstream code_server_default {
-    server 127.0.0.1:8080;
-    keepalive 32;
+# WebSocket connection upgrade map
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
 }
 
 # Server block for handling requests
@@ -59,89 +59,9 @@ server {
         proxy_set_header X-User $username;
         proxy_set_header X-Service "vscode";
     }
+
+    # Jupyter routing
     
-    # Handle Jupyter static files first (more specific pattern)
-    location ~ ^/user/([^/]+)/jupyter/(static/.*)$ {
-        set $username $1;
-        set $path $2;
-        
-        # Proxy to user-specific jupyter upstream for static files
-        proxy_pass http://jupyter_$username/$path$is_args$args;
-        
-        # Standard proxy headers
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # Cache static assets
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        
-        # No special headers needed for static files
-        proxy_buffering off;
-    }
-    
-    # User routing pattern for Jupyter (general)
-    location ~ ^/user/([^/]+)/jupyter/(.*)$ {
-        set $username $1;
-        set $path $2;
-        
-        # Proxy to user-specific jupyter upstream
-        proxy_pass http://jupyter_$username/$path$is_args$args;
-        
-        # Standard proxy headers
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket support for Jupyter
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection upgrade;
-        proxy_set_header Accept-Encoding gzip;
-        
-        # Jupyter-specific headers for base path handling
-        proxy_set_header X-Scheme $scheme;
-        proxy_set_header X-Script-Name /user/$username/jupyter;
-        proxy_set_header X-Forwarded-Base /user/$username/jupyter;
-        
-        # Additional headers recommended by Jupyter discourse for subpath routing
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Server $http_host;
-        
-        # Disable buffering
-        proxy_buffering off;
-        proxy_request_buffering off;
-        
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-        
-        # Large uploads
-        client_max_body_size 100M;
-        
-        # Add user context headers
-        proxy_set_header X-User $username;
-        proxy_set_header X-Service "jupyter";
-        
-        # Handle redirects properly
-        proxy_redirect ~^/(.*)$ /user/$username/jupyter/$1;
-    }
-    
-    # Handle Jupyter root redirects for users
-    location ~ ^/user/([^/]+)/jupyter/?$ {
-        set $username $1;
-        return 302 $scheme://$http_host/user/$username/jupyter/lab;
-    }
- 
-    # Health check endpoint
-    location /health {
-        access_log off;
-        return 200 "healthy\n";
-        add_header Content-Type text/plain;
-    }
     
     # Status endpoint for monitoring
     location /status {
@@ -149,5 +69,16 @@ server {
         return 200 '{"status":"ok","service":"nginx-multi-user"}';
         add_header Content-Type application/json;
     }
+}
+
+
+upstream jupyter_testuser {
+    server 127.0.0.1:8889 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone jupyter_testuser 64k;
+    keepalive 32;
 }
 
