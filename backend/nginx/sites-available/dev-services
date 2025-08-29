@@ -19,7 +19,9 @@ server {
     
     # Default root redirects to user selection or default instance
     location = / {
-        return 302 /user/default/vscode/;
+        access_log off;
+        return 404 "Not found\n";
+        add_header Content-Type text/plain;
     }
     
     # User routing pattern for VSCode
@@ -133,33 +135,7 @@ server {
         set $username $1;
         return 302 $scheme://$http_host/user/$username/jupyter/lab;
     }
-    
-    # Default VSCode fallback (for /vscode/ without user prefix)
-    location /vscode/ {
-        proxy_pass http://code_server_default/;
-        
-        # Standard code-server proxy configuration
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket support
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection upgrade;
-        proxy_set_header Accept-Encoding gzip;
-        
-        # Disable buffering
-        proxy_buffering off;
-        proxy_request_buffering off;
-        
-        # Timeouts and uploads
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-        client_max_body_size 100M;
-    }
-    
+ 
     # Health check endpoint
     location /health {
         access_log off;
@@ -175,85 +151,3 @@ server {
     }
 }
 
-# Default user upstream (maps to existing code-server)
-upstream vscode_default {
-    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
-    least_conn;
-    keepalive 32;
-}
-
-# User1 VSCode upstream
-upstream vscode_user1 {
-    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
-    least_conn;
-    keepalive 32;
-}
-
-upstream vscode_user2 {
-    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
-    least_conn;
-    keepalive 32;
-}
-
-# User1 Jupyter upstream
-upstream jupyter_user1 {
-    server 192.168.68.106:8088 max_fails=3 fail_timeout=30s;
-    least_conn;
-    keepalive 32;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-# likitha
-upstream vscode_likitha {
-    server 192.168.1.21:9000 max_fails=3 fail_timeout=30s;
-    # Use least_conn for better load distribution
-    least_conn;
-    
-    # Enable health checks
-    zone vscode_likitha 64k;
-    keepalive 32;
-}
-
-# likitha
-upstream jupyter_likitha {
-    server 192.168.1.21:9001 max_fails=3 fail_timeout=30s;
-    # Use least_conn for better load distribution
-    least_conn;
-    
-    # Enable health checks
-    zone jupyter_likitha 64k;
-    keepalive 32;
-}
-
-# kavana
-upstream vscode_kavana {
-    server 192.168.1.21:9010 max_fails=3 fail_timeout=30s;
-    # Use least_conn for better load distribution
-    least_conn;
-    
-    # Enable health checks
-    zone vscode_kavana 64k;
-    keepalive 32;
-}
-
-# kavana
-upstream jupyter_kavana {
-    server 192.168.1.21:9011 max_fails=3 fail_timeout=30s;
-    # Use least_conn for better load distribution
-    least_conn;
-    
-    # Enable health checks
-    zone jupyter_kavana 64k;
-    keepalive 32;
-}
