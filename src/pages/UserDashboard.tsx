@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, RefreshCw, Play, RotateCcw } from 'lucide-react'; 
+import { Terminal, RefreshCw, Play, RotateCcw, BookOpen, Copy, Check, FileText } from 'lucide-react'; 
 import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
@@ -9,6 +9,7 @@ import { LogsWindow } from '../components/LogsWindow';
 import { ResourceMonitor } from '../components/ResourceMonitor';
 import { userServicesApi, UserServicesDataFlat, GPUInfo } from '../lib/api';
 import { useSidebar } from '../hooks/useSidebar';
+import { API_ENDPOINTS, getEndpointUrl } from '../config/endpoints';
 
 interface SystemStats {
   cpu: {
@@ -64,6 +65,7 @@ export const UserDashboard: React.FC = () => {
   const [containerAction, setContainerAction] = useState<string | null>(null);
   const [logsWindowOpen, setLogsWindowOpen] = useState(false);
   const [logsWindowMinimized, setLogsWindowMinimized] = useState(false);
+  const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
 
   // Fetch user services data on component mount
   useEffect(() => {
@@ -143,13 +145,12 @@ export const UserDashboard: React.FC = () => {
       description: 'Python data science environment'
     },
     {
-      id: 'terminal',
-      name: 'Terminal',
-      icon: Terminal,
-      status: userServices?.services?.terminal?.available ? userServices.services.terminal.status : 'stopped',
-      port: 8083,
-      url: userServices?.services?.terminal?.url || undefined,
-      description: 'Web-based terminal access'
+      id: 'ollama',
+      name: 'Ollama API',
+      icon: BookOpen,
+      status: 'running',
+      url: API_ENDPOINTS.ollama.documentation,
+      description: `${API_ENDPOINTS.ollama.description} - Endpoint: ${API_ENDPOINTS.ollama.url}`
     }
   ];
 
@@ -157,6 +158,34 @@ export const UserDashboard: React.FC = () => {
     if (app.status === 'running' && app.url) {
       window.open(app.url, '_blank');
     }
+  };
+
+  const handleCopyEndpoint = async (endpointKey: string) => {
+    try {
+      const url = getEndpointUrl(endpointKey);
+      await navigator.clipboard.writeText(url);
+      setCopiedEndpoint(endpointKey);
+      setTimeout(() => setCopiedEndpoint(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy endpoint:', err);
+    }
+  };
+
+  const handleViewNotebook = (endpointKey: string) => {
+    if (!user?.name) return;
+    
+    // Check if Jupyter is available
+    const jupyterService = userServices?.services?.jupyter;
+    if (!jupyterService?.available || jupyterService.status !== 'running') {
+      setError('Jupyter service is not available. Please start your container first.');
+      return;
+    }
+
+    // Construct the notebook URL based on user and endpoint
+    const username = user.name;
+    const notebookUrl = `http://localhost/user/${username}/jupyter/lab/tree/workspace/${endpointKey}/${endpointKey}-api-sample.ipynb`;
+    
+    window.open(notebookUrl, '_blank');
   };
 
   const handleRefresh = async () => {
@@ -360,7 +389,37 @@ export const UserDashboard: React.FC = () => {
                       </div>
                       <div className={`w-2 h-2 rounded-full ${getStatusColor(app.status)}`}></div>
                     </div>
-                    <h3 className="font-medium text-sm mb-1">{app.name}</h3>
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-medium text-sm">{app.name}</h3>
+                      {app.id === 'ollama' && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewNotebook('ollama');
+                            }}
+                            className="p-1 hover:bg-accent rounded transition-colors"
+                            title="View sample notebook"
+                          >
+                            <FileText className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyEndpoint('ollama');
+                            }}
+                            className="p-1 hover:bg-accent rounded transition-colors"
+                            title="Copy API endpoint"
+                          >
+                            {copiedEndpoint === 'ollama' ? (
+                              <Check className="w-3 h-3 text-green-500" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">{app.description}</p>
                     {!isAvailable && !isLoading && (
                       <div className="absolute inset-0 bg-gray-900/20 rounded-lg flex items-center justify-center">

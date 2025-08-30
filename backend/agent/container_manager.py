@@ -445,6 +445,7 @@ def init_backend_routes(app):
         qvp_bin_path_host = os.path.join(dir_deploy, "qvp")
         tools_path_host = os.path.join(dir_deploy, "tools")
         arm_path_host = os.path.join(dir_deploy, "tools/ARMCompiler6.16")
+        workspace_path_host = os.path.join(dir_deploy, "workspace")
         kvm_path_host = "/dev/kvm"
         
         volumes = {}
@@ -454,6 +455,7 @@ def init_backend_routes(app):
             (qvp_bin_path_host, os.getenv("QVP_BINARY_MOUNT", "/opt/qvp"), "rw"),
             (tools_path_host, os.getenv("TOOLS_MOUNT", "/opt/tools"), "ro"),
             (arm_path_host, "/usr/local/ARMCompiler6.16", "ro"),
+            (workspace_path_host, os.getenv("WORKSPACE_MOUNT", "/workspace"), "rw"),
             (kvm_path_host, "/dev/kvm", "rw"),
         ]
         
