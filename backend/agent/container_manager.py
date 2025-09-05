@@ -318,6 +318,15 @@ class DockerHelper:
 
         if valid_dir and valid_sign:
             logger.success("Valid workdir exists")
+            # Ensure workspace has proper permissions even if workdir already exists
+            workspace_path = os.path.join(dir_deploy, "workspace")
+            if os.path.exists(workspace_path):
+                try:
+                    os.chown(workspace_path, 1000, 1000)
+                    os.chmod(workspace_path, 0o755)
+                    logger.info(f"Updated workspace permissions for existing directory: {workspace_path}")
+                except Exception as e:
+                    logger.warning(f"Could not update workspace permissions: {e}")
             return True
 
         logger.warning(f"{dir_error}, {sign_error}")
@@ -333,6 +342,18 @@ class DockerHelper:
                     shutil.copy2(src_path, dst_path)
                 elif os.path.isdir(src_path):
                     shutil.copytree(src_path, dst_path)
+
+            # Ensure workspace directory exists and has proper permissions
+            workspace_path = os.path.join(dir_deploy, "workspace")
+            os.makedirs(workspace_path, exist_ok=True)
+            
+            # Set proper ownership and permissions for workspace
+            try:
+                os.chown(workspace_path, 1000, 1000)
+                os.chmod(workspace_path, 0o755)
+                logger.info(f"Set workspace permissions during setup: {workspace_path}")
+            except Exception as e:
+                logger.warning(f"Could not set workspace permissions during setup: {e}")
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             unique_hash = hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()
@@ -447,6 +468,22 @@ def init_backend_routes(app):
         arm_path_host = os.path.join(dir_deploy, "tools/ARMCompiler6.16")
         workspace_path_host = os.path.join(dir_deploy, "workspace")
         kvm_path_host = "/dev/kvm"
+        
+        # Ensure workspace directory exists and has proper permissions
+        os.makedirs(workspace_path_host, exist_ok=True)
+        
+        # Set proper ownership and permissions for workspace directory
+        # The container typically runs with UID 1000 (developer user)
+        try:
+            # Change ownership to UID 1000 (developer) and GID 1000
+            os.chown(workspace_path_host, 1000, 1000)
+            # Set permissions to allow read/write/execute for owner and group
+            os.chmod(workspace_path_host, 0o755)
+            logger.info(f"Set workspace permissions for {workspace_path_host} to UID:1000, GID:1000, mode:755")
+        except PermissionError as e:
+            logger.warning(f"Could not set workspace ownership (may need sudo): {e}")
+        except Exception as e:
+            logger.error(f"Error setting workspace permissions: {e}")
         
         volumes = {}
         volume_mounts = [
