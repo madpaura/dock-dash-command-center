@@ -1,0 +1,21 @@
+[Unit]
+Description=Docker Dashboard Backend Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/home/vishwa/gpu/dock-dash-command-center/backend
+Environment=PATH=/usr/bin:/usr/local/bin
+Environment=PYTHONPATH=/home/vishwa/gpu/dock-dash-command-center/backend
+ExecStart=/bin/bash -c "source /home/vishwa/gpu/dock-dash-command-center/qvp-deploy/bin/activate && python app.py"
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dock-dash-backend
+
+[Install]
+WantedBy=multi-user.target
