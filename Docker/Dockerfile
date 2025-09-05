@@ -37,82 +37,12 @@ RUN pip install --no-cache-dir \
     notebook \
     ipywidgets \
     jupyterlab-git \
-    jupyterlab-lsp \
-    # Core data science libraries
-    numpy \
-    pandas \
-    scipy \
-    scikit-learn \
-    # Visualization libraries
-    matplotlib \
-    seaborn \
-    plotly \
-    bokeh \
-    altair \
-    # Machine learning and AI
-    tensorflow \
-    torch \
-    torchvision \
-    torchaudio \
-    transformers \
-    datasets \
-    # Deep learning utilities
-    keras \
-    xgboost \
-    lightgbm \
-    catboost \
-    # Statistical analysis
-    statsmodels \
-    pingouin \
-    # Data processing and utilities
-    openpyxl \
-    xlrd \
-    h5py \
-    pyarrow \
-    fastparquet \
-    # Database connectivity
-    sqlalchemy \
-    psycopg2-binary \
-    pymongo \
-    # Web scraping and APIs
-    requests \
-    beautifulsoup4 \
-    scrapy \
-    # Image processing
-    pillow \
-    opencv-python \
-    imageio \
-    # Natural language processing
-    nltk \
-    spacy \
-    textblob \
-    # Time series analysis
-    prophet \
-    # Geospatial analysis
-    geopandas \
-    folium \
-    # Development and debugging tools
-    jupyter-dash \
-    ipdb \
-    tqdm \
-    # Configuration and environment
-    python-dotenv \
-    pyyaml \
-    # Testing
-    pytest \
-    pytest-cov
-
+    jupyterlab-lsp 
 
 # Create a non-root user
 RUN useradd -m -s /bin/bash developer
 USER developer
 WORKDIR /home/developer
-
-# Configure code-server
-RUN mkdir -p /home/developer/.config/code-server
-RUN echo 'bind-addr: 0.0.0.0:8080\n\
-auth: none\n\
-cert: false' > /home/developer/.config/code-server/config.yaml
 
 # Expose ports
 # 8080 for VS Code Server
@@ -122,6 +52,10 @@ EXPOSE 8080 8888
 # Create startup script with dynamic base URL support
 RUN echo '#!/bin/bash\n\
 echo "Starting VS Code Server on port 8080..."\n\
+mkdir -p .config/code-server\n\
+echo "bind-addr: 0.0.0.0:8080\n\
+auth: none\n\
+cert: false" > .config/code-server/config.yaml\n\
 code-server &\n\
 echo "Starting Jupyter Server on port 8888..."\n\
 # Use JUPYTER_BASE_URL environment variable if set, otherwise default\n\
@@ -139,6 +73,6 @@ else\n\
     jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root \\\n\
         --ServerApp.token='"'"''"'"' --ServerApp.password='"'"''"'"'\n\
 fi\n\
-wait' > start.sh && chmod +x start.sh
+wait' > /tmp/start.sh && chmod +x /tmp/start.sh
 
-CMD ["./start.sh"]
+CMD ["/tmp/start.sh"]
