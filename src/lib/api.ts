@@ -4,6 +4,63 @@
 
 const API_BASE_URL = 'http://localhost:8500/api';
 
+// Container Management Interfaces
+export interface ContainerInfo {
+  id: string;
+  name: string;
+  image: string;
+  status: string;
+  state: string;
+  created: string;
+  started: string;
+  finished?: string;
+  uptime: string;
+  cpu_usage: number;
+  memory_usage: number;
+  memory_used_mb: number;
+  memory_limit_mb: number;
+  disk_usage?: number;
+  network_rx_bytes: number;
+  network_tx_bytes: number;
+  ports: Array<{
+    container_port: string;
+    host_ip: string;
+    host_port: string;
+  }>;
+  volumes: Array<{
+    source: string;
+    destination: string;
+    mode: string;
+    type: string;
+  }>;
+  environment: string[];
+  command: string;
+  labels: Record<string, string>;
+  restart_count: number;
+  platform: string;
+}
+
+export interface ContainerListResponse {
+  success: boolean;
+  server_id: string;
+  server_ip: string;
+  containers: ContainerInfo[];
+  total_count: number;
+  running_count: number;
+  stopped_count: number;
+  error?: string;
+}
+
+export interface ContainerActionResponse {
+  success: boolean;
+  action: string;
+  container_id: string;
+  container_name: string;
+  message: string;
+  new_status?: string;
+  error?: string;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -594,7 +651,7 @@ export const serverApi = {
 };
 
 // Cleanup management interfaces
-export interface ContainerInfo {
+export interface CleanupContainerInfo {
   id: string;
   image: string;
   command: string;
@@ -624,8 +681,8 @@ export interface CleanupSummary {
   success: boolean;
   server_ip: string;
   containers: {
-    running: ContainerInfo[];
-    stopped: ContainerInfo[];
+    running: CleanupContainerInfo[];
+    stopped: CleanupContainerInfo[];
     sizes_info: string;
   };
   docker_images: {

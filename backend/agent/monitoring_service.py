@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 import atexit
 import subprocess
 import json
+import dateutil.parser
+from datetime import datetime
 
 load_dotenv(".env", override=True)
 manager_ip = os.getenv("MGMT_SERVER_IP")
@@ -413,6 +415,201 @@ def get_docker_image_details(image_id):
         logger.error(f"Error fetching image details for {image_id}: {e}")
         return {'error': f'Error fetching image details: {str(e)}'}
 
+def get_detailed_containers():
+    """
+    Get detailed information about all containers including stats and resource usage.
+    """
+    try:
+        client = docker.from_env(timeout=5)
+        
+        # Get all containers (running and stopped)
+        containers = client.containers.list(all=True)
+        container_data = []
+        
+        for container in containers:
+            try:
+                # Get container attributes
+                container.reload()
+                attrs = container.attrs
+                
+                # Calculate uptime
+                created_time = dateutil.parser.parse(attrs['Created'])
+                uptime_seconds = (datetime.now(created_time.tzinfo) - created_time).total_seconds()
+                
+                # Format uptime
+                if uptime_seconds < 60:
+                    uptime = f"{int(uptime_seconds)}s"
+                elif uptime_seconds < 3600:
+                    uptime = f"{int(uptime_seconds // 60)}m {int(uptime_seconds % 60)}s"
+                elif uptime_seconds < 86400:
+                    hours = int(uptime_seconds // 3600)
+                    minutes = int((uptime_seconds % 3600) // 60)
+                    uptime = f"{hours}h {minutes}m"
+                else:
+                    days = int(uptime_seconds // 86400)
+                    hours = int((uptime_seconds % 86400) // 3600)
+                    uptime = f"{days}d {hours}h"
+                
+                # Get resource stats if container is running
+                cpu_usage = 0.0
+                memory_usage = 0.0
+                memory_used_mb = 0.0
+                memory_limit_mb = 0.0
+                network_rx_bytes = 0
+                network_tx_bytes = 0
+                
+                if container.status == 'running':
+                    try:
+                        stats = container.stats(stream=False)
+                        
+                        # Calculate CPU usage
+                        cpu_stats = stats.get("cpu_stats", {})
+                        precpu_stats = stats.get("precpu_stats", {})
+                        
+                        cpu_total = cpu_stats.get("cpu_usage", {}).get("total_usage", 0)
+                        precpu_total = precpu_stats.get("cpu_usage", {}).get("total_usage", 0)
+                        system_cpu_usage = cpu_stats.get("system_cpu_usage", 0)
+                        previous_system_cpu_usage = precpu_stats.get("system_cpu_usage", 0)
+                        
+                        online_cpus = cpu_stats.get("online_cpus", 1) or 1
+                        cpu_delta = cpu_total - precpu_total
+                        system_delta = system_cpu_usage - previous_system_cpu_usage
+                        
+                        if system_delta > 0 and cpu_delta > 0:
+                            cpu_usage = (cpu_delta / system_delta) * 100.0 * online_cpus
+                        
+                        # Calculate memory usage
+                        memory_stats = stats.get("memory_stats", {})
+                        memory_used = memory_stats.get("usage", 0)
+                        memory_limit = memory_stats.get("limit", 1) or 1
+                        memory_usage = (memory_used / memory_limit) * 100.0
+                        memory_used_mb = memory_used / (1024 * 1024)
+                        memory_limit_mb = memory_limit / (1024 * 1024)
+                        
+                        # Get network stats
+                        networks = stats.get("networks", {})
+                        for network_name, network_stats in networks.items():
+                            network_rx_bytes += network_stats.get("rx_bytes", 0)
+                            network_tx_bytes += network_stats.get("tx_bytes", 0)
+                            
+                    except Exception as stats_error:
+                        logger.debug(f"Error getting stats for container {container.name}: {stats_error}")
+                
+                # Extract port information
+                ports = []
+                port_bindings = attrs.get("NetworkSettings", {}).get("Ports", {})
+                if port_bindings:
+                    for container_port, host_bindings in port_bindings.items():
+                        if host_bindings:
+                            for binding in host_bindings:
+                                ports.append({
+                                    "container_port": container_port,
+                                    "host_ip": binding.get("HostIp", "0.0.0.0"),
+                                    "host_port": binding.get("HostPort", "")
+                                })
+                        else:
+                            ports.append({
+                                "container_port": container_port,
+                                "host_ip": "",
+                                "host_port": ""
+                            })
+                
+                # Extract volume information
+                volumes = []
+                mounts = attrs.get("Mounts", [])
+                for mount in mounts:
+                    volumes.append({
+                        "source": mount.get("Source", ""),
+                        "destination": mount.get("Destination", ""),
+                        "mode": mount.get("Mode", ""),
+                        "type": mount.get("Type", "")
+                    })
+                
+                # Extract environment variables
+                env_vars = attrs.get("Config", {}).get("Env", [])
+                
+                # Get command
+                cmd = attrs.get("Config", {}).get("Cmd", [])
+                command = " ".join(cmd) if cmd else ""
+                
+                # Get labels
+                labels = attrs.get("Config", {}).get("Labels", {}) or {}
+                
+                # Get restart count
+                restart_count = attrs.get("RestartCount", 0)
+                
+                # Get platform
+                platform = attrs.get("Platform", "linux/amd64")
+                
+                container_info = {
+                    'id': container.id,
+                    'name': container.name,
+                    'image': container.image.tags[0] if container.image.tags else container.image.id[:12],
+                    'status': container.status,
+                    'state': attrs.get("State", {}).get("Status", "unknown"),
+                    'created': attrs['Created'],
+                    'started': attrs.get("State", {}).get("StartedAt", ""),
+                    'finished': attrs.get("State", {}).get("FinishedAt", ""),
+                    'uptime': uptime,
+                    'cpu_usage': round(cpu_usage, 2),
+                    'memory_usage': round(memory_usage, 2),
+                    'memory_used_mb': round(memory_used_mb, 2),
+                    'memory_limit_mb': round(memory_limit_mb, 2),
+                    'disk_usage': None,  # Docker doesn't provide easy disk usage per container
+                    'network_rx_bytes': network_rx_bytes,
+                    'network_tx_bytes': network_tx_bytes,
+                    'ports': ports,
+                    'volumes': volumes,
+                    'environment': env_vars,
+                    'command': command,
+                    'labels': labels,
+                    'restart_count': restart_count,
+                    'platform': platform
+                }
+                
+                container_data.append(container_info)
+                
+            except Exception as e:
+                logger.warning(f"Error processing container {container.name}: {e}")
+                continue
+        
+        # Sort by creation date (newest first)
+        container_data.sort(key=lambda x: x.get('created', ''), reverse=True)
+        
+        # Calculate summary stats
+        total_count = len(container_data)
+        running_count = len([c for c in container_data if c['status'] == 'running'])
+        stopped_count = total_count - running_count
+        
+        return {
+            'containers': container_data,
+            'total_count': total_count,
+            'running_count': running_count,
+            'stopped_count': stopped_count,
+            'timestamp': time.time()
+        }
+        
+    except DockerException as e:
+        logger.error(f"Docker daemon not available: {e}")
+        return {
+            'error': 'Docker daemon not available',
+            'containers': [],
+            'total_count': 0,
+            'running_count': 0,
+            'stopped_count': 0,
+            'timestamp': time.time()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching container details: {e}")
+        return {
+            'error': f'Error fetching container details: {str(e)}',
+            'containers': [],
+            'total_count': 0,
+            'running_count': 0,
+            'stopped_count': 0,
+            'timestamp': time.time()
+        }
+
 def init_stats_routes(app):
     @app.route('/get_resources', methods=['GET'])
     def get_resources():
@@ -430,3 +627,9 @@ def init_stats_routes(app):
         """Get detailed information about a specific Docker image"""
         image_details = get_docker_image_details(image_id)
         return jsonify(image_details)
+    
+    @app.route('/get_containers', methods=['GET'])
+    def get_containers_route():
+        """Get detailed information about all containers"""
+        containers_data = get_detailed_containers()
+        return jsonify(containers_data)

@@ -18,11 +18,11 @@ import { useSidebar } from '../hooks/useSidebar';
 const navItems = [
   { path: '/admin', label: 'Dashboard', icon: BarChart3, exact: true },
   { path: '/admin/servers', label: 'Servers', icon: HardDrive },
+  { path: '/admin/containers', label: 'Containers', icon: Container },
   { path: '/admin/images', label: 'Images', icon: Image },
   { path: '/admin/users', label: 'Users', icon: Users },
   { path: '/admin/logs', label: 'Logs', icon: FileText },
   // { path: '/admin/monitoring', label: 'Monitoring', icon: Activity },
-  // { path: '/admin/containers', label: 'Containers', icon: Container },
   // { path: '/admin/networks', label: 'Networks', icon: Network },
   // { path: '/admin/volumes', label: 'Volumes', icon: HardDrive },
 ];
