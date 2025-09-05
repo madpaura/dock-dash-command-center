@@ -37,7 +37,70 @@ RUN pip install --no-cache-dir \
     notebook \
     ipywidgets \
     jupyterlab-git \
-    jupyterlab-lsp 
+    jupyterlab-lsp  \
+    # Core data science libraries
+    numpy \
+    pandas \
+    scipy \
+    scikit-learn \
+    # Visualization libraries
+    matplotlib \
+    seaborn \
+    plotly \
+    bokeh \
+    altair \
+    # Machine learning and AI
+    tensorflow \
+    torch \
+    torchvision \
+    torchaudio \
+    transformers \
+    datasets \
+    # Deep learning utilities
+    keras \
+    xgboost \
+    lightgbm \
+    catboost \
+    # Statistical analysis
+    statsmodels \
+    pingouin \
+    # Data processing and utilities
+    openpyxl \
+    xlrd \
+    h5py \
+    pyarrow \
+    fastparquet \
+    # Database connectivity
+    sqlalchemy \
+    psycopg2-binary \
+    pymongo \
+    # Web scraping and APIs
+    requests \
+    beautifulsoup4 \
+    scrapy \
+    # Image processing
+    pillow \
+    opencv-python \
+    imageio \
+    # Natural language processing
+    nltk \
+    spacy \
+    textblob \
+    # Time series analysis
+    prophet \
+    # Geospatial analysis
+    geopandas \
+    folium \
+    # Development and debugging tools
+    jupyter-dash \
+    ipdb \
+    tqdm \
+    # Configuration and environment
+    python-dotenv \
+    pyyaml \
+    # Testing
+    pytest \
+    pytest-cov
 
 # Create a non-root user
 RUN useradd -m -s /bin/bash developer
