@@ -83,7 +83,7 @@ export const UserSidebar: React.FC = () => {
                 <div className="w-5 h-5 rounded-full flex bg-black dark:bg-white items-center justify-center text-stone-50 dark:text-amber-50 hover:animate-spin hover:scale-110 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl">
                   <User className="w-3 h-3 text-white dark:text-black" />
                 </div>
-                <span className="hover:text-sidebar-primary transition-colors duration-200">by Vishwa (Using AI)</span>
+                <span className="hover:text-sidebar-primary transition-colors duration-200">VMG</span>
               </div>
             </div>
           </div>
