@@ -6,11 +6,11 @@ After=network.target
 Type=simple
 User=vishwa
 WorkingDirectory=/home/vishwa/gpu/dock-dash-command-center
-ExecStart=/bin/bash -c "cd /home/vishwa/gpu/dock-dash-command-center && npm run dev"
+ExecStart=/bin/bash -c "cd /home/vishwa/gpu/dock-dash-command-center && npm run build && npm run preview"
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
-Environment=PORT=3000
+Environment=PORT=8080
 
 # Logging
 StandardOutput=journal
