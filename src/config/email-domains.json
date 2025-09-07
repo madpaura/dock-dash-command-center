@@ -1,0 +1,8 @@
+{
+  "allowedDomains": [
+    "samsung.com"
+  ],
+  "validationEnabled": true,
+  "errorMessage": "Please use samsung corporate email address",
+  "allowedDomainsDisplay": "bot@samsung.com"
+}

@@ -99,8 +99,8 @@ class DatabaseManager:
             print("Creating default admin user...")
             admin_data = {
                 'username': 'admin',
-                'password': hashlib.sha256('admin123'.encode()).hexdigest(),
-                'email': 'admin@example.com',
+                'password': hashlib.sha256('coder123!'.encode()).hexdigest(),
+                'email': 'admin@samsung.com',
                 'is_admin': True,
                 'is_approved': True
             }
