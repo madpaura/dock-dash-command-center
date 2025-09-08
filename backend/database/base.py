@@ -94,15 +94,20 @@ class DatabaseManager:
         
         user_repo = UserRepository()
         admin_user = user_repo.get_user_by_username('admin')
-        
+               if not os.path.exists("admin.env"):
+            raise Exception("admin.env file not found")
+
+        from dotenv import load_dotenv
+        load_dotenv("admin.env")
+
         if not admin_user:
             print("Creating default admin user...")
             admin_data = {
-                'username': 'admin',
-                'password': hashlib.sha256('coder123!'.encode()).hexdigest(),
-                'email': 'admin@samsung.com',
+                'username': os.getenv('ADMIN_USERNAME'),
+                'password': hashlib.sha256(os.getenv('ADMIN_PASSWORD').encode()).hexdigest(),
+                'email': os.getenv('ADMIN_EMAIL'),
                 'is_admin': True,
-                'is_approved': True
-            }
+
             user_repo.create_user(admin_data)
             print("Default admin user created successfully")
+

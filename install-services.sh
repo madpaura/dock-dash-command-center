@@ -4,7 +4,7 @@
 # This script installs and enables the backend and agent services
 
 set -e
-
+PWD=$(pwd)
 echo "Installing Docker Dashboard Services..."
 
 # Check if running as root
@@ -15,11 +15,11 @@ fi
 
 SYSTEMD_DIR="/etc/systemd/system"
 
-FRONTEND_SERVICE_FILE="/home/vishwa/gpu/dock-dash-command-center/gpu-coder-frontend.service"
+FRONTEND_SERVICE_FILE="$PWD/gpu-coder-frontend.service"
 
 # backend admin & agent
-BACKEND_SERVICE_FILE="/home/vishwa/gpu/dock-dash-command-center/backend/gpu-coder-admin.service"
-AGENT_SERVICE_FILE="/home/vishwa/gpu/dock-dash-command-center/backend/agent/gpu-coder-agent.service"
+BACKEND_SERVICE_FILE="$PWD/backend/gpu-coder-admin.service"
+AGENT_SERVICE_FILE="$PWD/backend/agent/gpu-coder-agent.service"
 
 # Check if service files exist
 if [ ! -f "$BACKEND_SERVICE_FILE" ]; then
