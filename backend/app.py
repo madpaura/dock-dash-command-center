@@ -21,6 +21,7 @@ from services.audit_service import AuditService
 from services.agent_service import AgentService
 from services.cleanup_service import CleanupService
 from services.container_service import ContainerService
+from services.traffic_service import TrafficService
 
 # Import utilities
 from utils.helpers import get_client_ip
@@ -62,6 +63,10 @@ load_dotenv(".env", override=True)
 app = Flask(__name__)
 CORS(app)
 
+# Setup traffic tracking middleware
+from middleware.traffic_tracker import setup_traffic_tracking
+setup_traffic_tracking(app)
+
 # Initialize database
 db = UserDatabase()
 db.initialize_database()
@@ -78,6 +83,7 @@ docker_service = DockerService(db, agent_service, agent_port)
 audit_service = AuditService(db)
 cleanup_service = CleanupService(db)
 container_service = ContainerService(agent_service)
+traffic_service = TrafficService()
 
 # Import nginx service
 from services.nginx_service import NginxService
@@ -1295,6 +1301,28 @@ def clear_container_cache():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# Traffic Analytics endpoints
+from api.traffic_routes import traffic_bp
+app.register_blueprint(traffic_bp)
+
+# Helper function for admin authentication
+def require_admin_auth():
+    """Helper function for admin authentication."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, jsonify({'error': 'Authorization required'}), 401
+    
+    token = auth_header.split(' ')[1]
+    session = auth_service.validate_session(token)
+    if not session:
+        return None, jsonify({'error': 'Invalid session'}), 401
+    
+    if not session.get('is_admin'):
+        return None, jsonify({'error': 'Admin access required'}), 403
+    
+    return session, None, None
 
 
 if __name__ == '__main__':

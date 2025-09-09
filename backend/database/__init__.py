@@ -5,6 +5,7 @@ from .base import DatabaseManager
 from .user_repository import UserRepository
 from .session_repository import SessionRepository
 from .audit_repository import AuditRepository
+from .traffic_repository import TrafficRepository
 
 
 class UserDatabase:
@@ -21,6 +22,7 @@ class UserDatabase:
         self.user_repo = UserRepository()
         self.session_repo = SessionRepository()
         self.audit_repo = AuditRepository()
+        self.traffic_repo = TrafficRepository()
     
     # Database initialization
     def initialize_database(self):
@@ -131,5 +133,6 @@ __all__ = [
     'UserRepository',
     'SessionRepository',
     'AuditRepository',
+    'TrafficRepository',
     'UserDatabase'
 ]

@@ -918,6 +918,217 @@ export const userServicesApi = {
 /**
  * Dashboard API calls
  */
+/**
+ * Traffic analytics interfaces
+ */
+export interface TrafficAnalytics {
+  daily_stats: DailyTrafficStats[];
+  weekly_stats?: WeeklyTrafficStats[];
+  monthly_stats?: MonthlyTrafficStats[];
+  top_ips: TopIPStats[];
+  top_users: TopUserStats[];
+  hourly_distribution: HourlyStats[];
+  endpoint_stats: EndpointStats[];
+  summary: TrafficSummary;
+  date_range: {
+    start_date: string;
+    end_date: string;
+  };
+}
+
+export interface DailyTrafficStats {
+  date: string;
+  total_requests: number;
+  unique_ips: number;
+  unique_users: number;
+  avg_duration: number;
+  total_bytes_sent: number;
+  total_bytes_received: number;
+  error_count: number;
+}
+
+export interface WeeklyTrafficStats {
+  week_start: string;
+  total_requests: number;
+  unique_ips: number;
+  unique_users: number;
+  avg_duration: number;
+  total_bytes_sent: number;
+  total_bytes_received: number;
+  error_count: number;
+}
+
+export interface MonthlyTrafficStats {
+  month: string;
+  total_requests: number;
+  unique_ips: number;
+  unique_users: number;
+  avg_duration: number;
+  total_bytes_sent: number;
+  total_bytes_received: number;
+  error_count: number;
+}
+
+export interface TopIPStats {
+  ip_address: string;
+  request_count: number;
+  unique_users: number;
+  avg_duration: number;
+}
+
+export interface TopUserStats {
+  username: string;
+  email: string;
+  request_count: number;
+  unique_ips: number;
+  avg_duration: number;
+  last_access: string;
+}
+
+export interface HourlyStats {
+  hour: number;
+  request_count: number;
+}
+
+export interface EndpointStats {
+  endpoint: string;
+  request_count: number;
+  avg_duration: number;
+  error_count: number;
+}
+
+export interface TrafficSummary {
+  total_requests: number;
+  total_unique_ips: number;
+  total_unique_users: number;
+  avg_daily_requests: number;
+  avg_session_duration: number;
+  total_errors: number;
+  error_rate: number;
+}
+
+export interface UserSession {
+  session_token: string;
+  ip_address: string;
+  username: string;
+  email: string;
+  session_start: string;
+  session_end: string;
+  total_duration: number;
+  request_count: number;
+  unique_endpoints: number;
+}
+
+export interface RealTimeStats {
+  last_24_hours: TrafficAnalytics;
+  overall_summary: {
+    total_requests: number;
+    unique_ips: number;
+    unique_users: number;
+    total_sessions: number;
+    avg_session_duration: number;
+    total_bytes_sent: number;
+    total_bytes_received: number;
+    first_access: string;
+    last_access: string;
+  };
+  timestamp: string;
+}
+
+/**
+ * Traffic analytics API calls
+ */
+export const trafficApi = {
+  async getTrafficAnalytics(
+    token: string,
+    period: 'daily' | 'weekly' | 'monthly' = 'daily',
+    days: number = 30,
+    ipFilter?: string,
+    userFilter?: string
+  ): Promise<ApiResponse<TrafficAnalytics>> {
+    const params = new URLSearchParams({
+      period,
+      days: days.toString(),
+    });
+    
+    if (ipFilter) params.append('ip_filter', ipFilter);
+    if (userFilter) params.append('user_filter', userFilter);
+
+    return fetchApi(`/admin/traffic/analytics?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async getRealTimeStats(token: string): Promise<ApiResponse<RealTimeStats>> {
+    return fetchApi('/admin/traffic/real-time', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async getUserActivity(
+    token: string,
+    userId: number,
+    days: number = 7
+  ): Promise<ApiResponse<UserSession[]>> {
+    return fetchApi(`/admin/traffic/user/${userId}?days=${days}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async getIPAnalytics(
+    token: string,
+    ipAddress: string,
+    days: number = 30
+  ): Promise<ApiResponse<TrafficAnalytics & { sessions: UserSession[] }>> {
+    return fetchApi(`/admin/traffic/ip/${encodeURIComponent(ipAddress)}?days=${days}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async getTopEndpoints(
+    token: string,
+    days: number = 7
+  ): Promise<ApiResponse<EndpointStats[]>> {
+    return fetchApi(`/admin/traffic/endpoints?days=${days}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async getTrafficSummary(token: string): Promise<ApiResponse<{
+    total_requests: number;
+    unique_ips: number;
+    unique_users: number;
+    total_sessions: number;
+    avg_session_duration: number;
+    total_bytes_sent: number;
+    total_bytes_received: number;
+    first_access: string;
+    last_access: string;
+  }>> {
+    return fetchApi('/admin/traffic/summary', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+};
+
 export const dashboardApi = {
   async getDashboardStats(token: string): Promise<ApiResponse<DashboardStats>> {
     // Fetch data from multiple endpoints and combine

@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
-  Info
+  Info,
+  TrendingUp
 } from 'lucide-react';
 import { useSidebar } from '../hooks/useSidebar';
 
@@ -22,6 +23,7 @@ const navItems = [
   { path: '/admin/containers', label: 'Containers', icon: Container },
   { path: '/admin/images', label: 'Images', icon: Image },
   { path: '/admin/users', label: 'Users', icon: Users },
+  { path: '/admin/traffic', label: 'Traffic', icon: TrendingUp },
   { path: '/admin/logs', label: 'Logs', icon: FileText },
   // { path: '/admin/monitoring', label: 'Monitoring', icon: Activity },
   // { path: '/admin/networks', label: 'Networks', icon: Network },

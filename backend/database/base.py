@@ -1,8 +1,10 @@
-"""Base database connection management."""
+"""Database manager for user authentication system."""
 
 import mysql.connector
 from mysql.connector import pooling
-from typing import Optional
+import logging
+import os
+from typing import Optional, Dict, Any
 from .config import DatabaseConfig
 
 
@@ -65,6 +67,28 @@ class DatabaseManager:
             ip_address VARCHAR(45),
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS user_access_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT,
+            session_token VARCHAR(255),
+            ip_address VARCHAR(45) NOT NULL,
+            user_agent TEXT,
+            endpoint VARCHAR(255),
+            method VARCHAR(10),
+            status_code INT,
+            access_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            session_start TIMESTAMP,
+            session_end TIMESTAMP,
+            duration_seconds INT,
+            bytes_sent BIGINT DEFAULT 0,
+            bytes_received BIGINT DEFAULT 0,
+            INDEX idx_user_id (user_id),
+            INDEX idx_ip_address (ip_address),
+            INDEX idx_access_time (access_time),
+            INDEX idx_session_token (session_token),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
         """
         
