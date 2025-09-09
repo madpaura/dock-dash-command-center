@@ -2,7 +2,7 @@
  * Container Management API
  */
 
-const API_BASE_URL = 'http://localhost:8500/api';
+const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8500/api`;
 
 // Container Management Interfaces
 export interface ContainerInfo {
