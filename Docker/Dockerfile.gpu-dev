@@ -1,0 +1,134 @@
+# GPU Development Environment with VSCode and Jupyter
+# Base image with CUDA support
+FROM nvidia/cuda:12.1-devel-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV USER=developer
+ENV HOME=/home/developer
+ENV SHELL=/bin/bash
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Basic utilities
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    htop \
+    tree \
+    unzip \
+    zip \
+    # Development tools
+    build-essential \
+    cmake \
+    pkg-config \
+    # Python and pip
+    python3 \
+    python3-pip \
+    python3-dev \
+    python3-venv \
+    # Node.js for code-server
+    nodejs \
+    npm \
+    # System libraries
+    libssl-dev \
+    libffi-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    libpng-dev \
+    # GPU monitoring tools
+    nvidia-utils-525 \
+    # Password utilities
+    openssl \
+    # SSH server for remote access
+    openssh-server \
+    # Sudo for user privileges
+    sudo \
+    # Clean up
+    && rm -rf /var/lib/apt/lists/*
+
+# Create developer user with sudo privileges
+RUN useradd -m -s /bin/bash -G sudo ${USER} && \
+    echo "${USER}:developer" | chpasswd && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Install code-server (VSCode in browser)
+RUN curl -fsSL https://code-server.dev/install.sh | sh
+
+# Install Jupyter and common data science packages
+RUN pip3 install --no-cache-dir \
+    jupyter \
+    jupyterlab \
+    notebook \
+    ipywidgets \
+    # Data science libraries
+    numpy \
+    pandas \
+    matplotlib \
+    seaborn \
+    scikit-learn \
+    # GPU libraries
+    torch \
+    torchvision \
+    torchaudio \
+    # Additional useful packages
+    requests \
+    flask \
+    fastapi \
+    uvicorn
+
+# Create necessary directories
+RUN mkdir -p /config/.config/code-server \
+    && mkdir -p /config/.jupyter \
+    && mkdir -p /workspace \
+    && mkdir -p /opt/scripts
+
+# Copy password configuration script
+COPY scripts/configure-passwords.sh /opt/scripts/configure-passwords.sh
+RUN chmod +x /opt/scripts/configure-passwords.sh
+
+# Copy startup script
+COPY scripts/startup.sh /opt/scripts/startup.sh
+RUN chmod +x /opt/scripts/startup.sh
+
+# Set proper ownership
+RUN chown -R ${USER}:${USER} /config /workspace /opt/scripts
+
+# Switch to developer user
+USER ${USER}
+WORKDIR ${HOME}
+
+# Create default VSCode settings
+RUN mkdir -p /config/.config/code-server && \
+    echo 'bind-addr: 0.0.0.0:8080' > /config/.config/code-server/config.yaml && \
+    echo 'auth: password' >> /config/.config/code-server/config.yaml && \
+    echo 'password: changeme123' >> /config/.config/code-server/config.yaml && \
+    echo 'cert: false' >> /config/.config/code-server/config.yaml
+
+# Create default Jupyter config
+RUN jupyter server --generate-config && \
+    echo "c.ServerApp.ip = '0.0.0.0'" >> ~/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.port = 8888" >> ~/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.open_browser = False" >> ~/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.allow_root = False" >> ~/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.token = ''" >> ~/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.password = ''" >> ~/.jupyter/jupyter_server_config.py
+
+# Expose ports
+EXPOSE 8080 8888 22
+
+# Set default environment variables (will be overridden by container creation)
+ENV PASSWORD=changeme123
+ENV JUPYTER_PASSWORD=changeme123
+ENV SUDO_PASSWORD=changeme123
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080 || exit 1
+
+# Start services
+CMD ["/opt/scripts/startup.sh"]

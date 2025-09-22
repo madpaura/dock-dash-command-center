@@ -401,13 +401,22 @@ def init_backend_routes(app):
         data = request.get_json()
         user = data["user"]
         session_token = data["session_token"]
+        user_password = data.get("password", os.getenv("SUDO_PASSWORD", "abc"))  # Use user's login password
 
         env = {
             "PUID": os.geteuid(),
             "PGID": os.getegid(),
             "TZ": "Etc/UTC",
             "DEFAULT_WORKSPACE": os.getenv("DEFAULT_WORKSPACE", "/config/workspace"),
-            "SUDO_PASSWORD": os.getenv("SUDO_PASSWORD", "abc"),
+            "SUDO_PASSWORD": user_password,
+            # VSCode server password authentication
+            "PASSWORD": user_password,
+            "HASHED_PASSWORD": "",  # Let code-server generate the hash
+            # Jupyter password configuration
+            "JUPYTER_TOKEN": user_password,
+            "JUPYTER_PASSWORD": user_password,
+            # User information for password configuration
+            "USER": user,
             # Set Jupyter base URL for proper subpath routing in multi-user environment
             "JUPYTER_BASE_URL": f"/user/{user}/jupyter",
             # Legacy JupyterHub compatibility (kept for backward compatibility)

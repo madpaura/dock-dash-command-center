@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     # System monitoring tools
     procps \
+    # Password utilities for VSCode/Jupyter authentication
+    openssl \
     # Clean up to reduce image size
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,6 +37,10 @@ COPY backend/ .
 
 # Create necessary directories
 RUN mkdir -p /app/logs
+
+# Copy password configuration script
+COPY backend/scripts/configure-passwords.sh /usr/local/bin/configure-passwords.sh
+RUN chmod +x /usr/local/bin/configure-passwords.sh
 
 # Set environment variables
 ENV PYTHONPATH=/app

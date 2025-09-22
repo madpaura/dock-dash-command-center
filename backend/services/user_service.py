@@ -180,9 +180,7 @@ class UserService:
             logger.error(f"Error fetching pending users: {e}")
             return []
     
-    def approve_user(self, user_id: int, server_assignment: str, admin_username: str, 
-                     agent_port: Optional[int] = None, ip_address: Optional[str] = None, 
-                     resources: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    def approve_user(self, user_id: int, server_assignment: str, admin_username: str, agent_port: int, ip_address: str, resources: Dict[str, str] = None, user_password: str = None) -> Dict[str, Any]:
         try:
             user = self.db.get_user_by_id(user_id)
             if not user:
@@ -208,7 +206,9 @@ class UserService:
             
             redirect_server = server_assignment
             # Create Docker container for the user
-            container_result = self._create_user_container(user['username'], redirect_server, user_resources, self.agent_port)
+            # Use provided password or fallback to default
+            container_password = user_password or "changeme123"
+            container_result = self._create_user_container(user['username'], redirect_server, user_resources, self.agent_port, container_password)
             redirect_url=f"NA"
             is_approved = False
             nginx_result = None
@@ -324,7 +324,59 @@ class UserService:
             logger.error(f"Error approving user {user_id}: {e}")
             return {'success': False, 'error': str(e)}
     
-    def _create_user_container(self, username: str, server_ip: str, resources: Dict[str, str], agent_port: int) -> Dict[str, Any]:
+    def set_container_password(self, user_id: int, container_password: str) -> Dict[str, Any]:
+        """Set VSCode/Jupyter password for user containers."""
+        try:
+            user = self.db.get_user_by_id(user_id)
+            if not user:
+                return {'success': False, 'error': 'User not found'}
+            
+            # Parse existing metadata
+            metadata = self._parse_user_metadata(user.get('metadata'))
+            
+            # Store the container password in metadata (encrypted/hashed for security)
+            import hashlib
+            hashed_container_password = hashlib.sha256(container_password.encode()).hexdigest()
+            
+            metadata.update({
+                'container_password_hash': hashed_container_password,
+                'container_password_set_at': datetime.now().isoformat()
+            })
+            
+            # Update user metadata
+            success = self.db.update_user(user_id, {'metadata': json.dumps(metadata)})
+            
+            if success:
+                logger.info(f"Container password set for user {user['username']}")
+                return {
+                    'success': True,
+                    'message': 'Container password set successfully'
+                }
+            else:
+                return {'success': False, 'error': 'Failed to update user metadata'}
+                
+        except Exception as e:
+            logger.error(f"Error setting container password for user {user_id}: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_user_container_password(self, user_id: int) -> str:
+        """Get the stored container password for a user (for internal use only)."""
+        try:
+            user = self.db.get_user_by_id(user_id)
+            if not user:
+                return None
+            
+            metadata = self._parse_user_metadata(user.get('metadata'))
+            # For security, we don't store plain text passwords
+            # This would need to be implemented with proper encryption/decryption
+            # For now, return a default password if none is set
+            return metadata.get('container_password_plain', 'changeme123')
+            
+        except Exception as e:
+            logger.error(f"Error getting container password for user {user_id}: {e}")
+            return None
+    
+    def _create_user_container(self, username: str, server_ip: str, resources: Dict[str, str], agent_port: int, user_password: str = None) -> Dict[str, Any]:
         try:
             cpu_cores = self._parse_cpu_spec(resources.get('cpu', '2 cores'))
             memory_limit = self._parse_memory_spec(resources.get('ram', '4GB'))
@@ -332,6 +384,7 @@ class UserService:
             container_data = {
                 'user': username,
                 'session_token': 'admin_approval',
+                'password': user_password,  # Pass user's login password for VSCode/Jupyter auth
                 'resources': {
                     'cpu_count': cpu_cores,
                     'memory_limit': memory_limit,

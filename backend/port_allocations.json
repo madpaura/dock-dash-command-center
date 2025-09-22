@@ -5,6 +5,12 @@
       "end_port": 9009,
       "range_size": 10,
       "allocated_at": "2025-08-29T10:36:48+05:30"
+    },
+    "vishwa": {
+      "start_port": 9010,
+      "end_port": 9019,
+      "range_size": 10,
+      "allocated_at": "2025-08-29T10:36:48+05:30"
     }
   },
   "metadata": {

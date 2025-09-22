@@ -61,6 +61,30 @@ server {
     }
 
     # Jupyter routing
+    location /user/vishwa/jupyter/
+    {
+        proxy_pass http://192.168.68.105:9011;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
+    location /user/u1/jupyter/
+    {
+        proxy_pass http://192.168.68.105:9001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
     
     
     # Status endpoint for monitoring
@@ -82,3 +106,49 @@ upstream jupyter_testuser {
     keepalive 32;
 }
 
+
+
+
+# u1
+upstream vscode_u1 {
+    server 192.168.68.105:9000 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone vscode_u1 64k;
+    keepalive 32;
+}
+
+# u1
+upstream jupyter_u1 {
+    server 192.168.68.105:9001 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone jupyter_u1 64k;
+    keepalive 32;
+}
+
+# vishwa
+upstream vscode_vishwa {
+    server 192.168.68.105:9010 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone vscode_vishwa 64k;
+    keepalive 32;
+}
+
+# vishwa
+upstream jupyter_vishwa {
+    server 192.168.68.105:9011 max_fails=3 fail_timeout=30s;
+    # Use least_conn for better load distribution
+    least_conn;
+    
+    # Enable health checks
+    zone jupyter_vishwa 64k;
+    keepalive 32;
+}

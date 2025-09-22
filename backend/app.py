@@ -228,10 +228,34 @@ def approve_user(user_id):
     data = request.get_json()
     server_id = data.get('server')
     resources = data.get('resources', {})
+    user_password = data.get('password')  # Accept password for VSCode/Jupyter authentication
     admin_username = session.get('username')
     ip_address = get_client_ip(request)
     
-    result = user_service.approve_user(user_id, server_id, admin_username, agent_port, ip_address, resources)
+    result = user_service.approve_user(user_id, server_id, admin_username, agent_port, ip_address, resources, user_password)
+    
+    if result.get('success'):
+        return jsonify(result)
+    return jsonify(result), 400
+
+@app.route('/api/users/<int:user_id>/set-container-password', methods=['POST'])
+def set_container_password(user_id):
+    """Set VSCode/Jupyter password for user containers."""
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
+    
+    # Users can only set their own password, admins can set any user's password
+    if not session.get('is_admin') and session.get('id') != user_id:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    data = request.get_json()
+    container_password = data.get('container_password')
+    
+    if not container_password or len(container_password) < 6:
+        return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
+    
+    result = user_service.set_container_password(user_id, container_password)
     
     if result.get('success'):
         return jsonify(result)
