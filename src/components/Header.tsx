@@ -1,12 +1,36 @@
 
-import React from 'react';
-import { Settings, User, LogOut, Cpu } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, User, LogOut, Cpu, KeyRound } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { ThemeToggle } from './ThemeToggle';
 import { PasswordResetNotifications } from './PasswordResetNotifications';
+import { UserPasswordResetRequestDialog } from './UserPasswordResetRequestDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { userServicesApi } from '../lib/api';
 
 export const Header: React.FC = () => {
   const { user, logout } = useAuth();
+  const [isPasswordResetDialogOpen, setIsPasswordResetDialogOpen] = useState(false);
+  const [resetRequestSuccess, setResetRequestSuccess] = useState(false);
+
+  const handlePasswordResetRequest = async (reason: string) => {
+    if (!user?.token) return;
+
+    try {
+      const response = await userServicesApi.requestPasswordReset(user.token, reason);
+      if (response.success) {
+        setResetRequestSuccess(true);
+        setTimeout(() => setResetRequestSuccess(false), 5000);
+      }
+    } catch (err) {
+      console.error('Error requesting password reset:', err);
+    }
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
@@ -27,9 +51,23 @@ export const Header: React.FC = () => {
         <div className="flex items-center gap-4">
           <PasswordResetNotifications />
           <ThemeToggle />
-          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
-            <Settings className="w-5 h-5" />
-          </button>
+          
+          {/* Settings Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
+                <Settings className="w-5 h-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {user?.role === 'user' && (
+                <DropdownMenuItem onClick={() => setIsPasswordResetDialogOpen(true)}>
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Request Password Reset
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           <div className="flex items-center gap-3 pl-4 border-l border-border">
             <div className="flex items-center gap-2">
@@ -50,6 +88,13 @@ export const Header: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Password Reset Request Dialog */}
+      <UserPasswordResetRequestDialog
+        isOpen={isPasswordResetDialogOpen}
+        onClose={() => setIsPasswordResetDialogOpen(false)}
+        onSubmit={handlePasswordResetRequest}
+      />
     </header>
   );
 };
