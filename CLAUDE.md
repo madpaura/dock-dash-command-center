@@ -165,6 +165,21 @@ Consider adding:
 
 ## Recent Updates
 
+### Auto-Reload Development Mode (2025-10-02)
+Enabled Flask auto-reload for both backend applications to automatically restart when code changes are detected:
+
+**Changes Made**:
+- `backend/app.py`: Changed `debug=False` to `debug=True, use_reloader=True`
+- `backend/agent/agent_server.py`: Changed `debug=False` to `debug=True, use_reloader=True`
+
+**Benefits**:
+- No manual server restarts needed during development
+- Instant code changes reflection
+- Faster development iteration
+- Automatic detection of Python file changes
+
+**Note**: Debug mode should be disabled in production environments for security and performance.
+
 ### Container Management Optimization (2025-01-23)
 Enhanced container start functionality to automatically recreate containers when they are completely removed:
 

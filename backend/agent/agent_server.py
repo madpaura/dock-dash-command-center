@@ -69,4 +69,5 @@ if __name__ == '__main__':
             print(f"Error loading config: {e}")
     
     print(f"Starting agent server on port {port}")
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Enable debug mode for auto-reload on code changes
+    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=True)
