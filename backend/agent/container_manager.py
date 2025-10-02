@@ -156,17 +156,6 @@ class DockerContainerManager:
             
             logger.info(f"Recreating container for user {username} using existing workdir")
             
-            # Setup environment variables
-            env = {
-                "PUID": os.geteuid(),
-                "PGID": os.getegid(),
-                "TZ": "Etc/UTC",
-                "DEFAULT_WORKSPACE": os.getenv("DEFAULT_WORKSPACE", "/config/workspace"),
-                "SUDO_PASSWORD": os.getenv("SUDO_PASSWORD", "abc"),
-                "JUPYTER_BASE_URL": f"/user/{username}/jupyter",
-                "JUPYTERHUB_SERVICE_PREFIX": f"/user/{username}/jupyter/",
-            }
-            
             # Get Docker image configuration
             docker_image_name = os.getenv("DOCKER_IMAGE", "gpu-dev-environment")
             docker_image_tag = os.getenv("DOCKER_TAG", "latest")
@@ -184,61 +173,14 @@ class DockerContainerManager:
             
             logger.info(f"Using existing workdir: {dir_deploy}")
             
-            # Setup volume paths
-            guest_os_path_host = os.path.join(dir_deploy, "guestos")
-            config_path_host = os.path.join(dir_deploy, "code/config")
-            qvp_bin_path_host = os.path.join(dir_deploy, "qvp")
-            tools_path_host = os.path.join(dir_deploy, "tools")
-            arm_path_host = os.path.join(dir_deploy, "tools/ARMCompiler6.16")
-            workspace_path_host = os.path.join(dir_deploy, "workspace")
-            kvm_path_host = "/dev/kvm"
-            
-            # Ensure workspace has proper permissions
-            if os.path.exists(workspace_path_host):
-                try:
-                    os.chown(workspace_path_host, 1000, 1000)
-                    os.chmod(workspace_path_host, 0o755)
-                    logger.info(f"Updated workspace permissions: {workspace_path_host}")
-                except Exception as e:
-                    logger.warning(f"Could not update workspace permissions: {e}")
-            
-            # Setup volumes
-            volumes = {}
-            volume_mounts = [
-                (guest_os_path_host, os.getenv("GUEST_OS_MOUNT", "/opt/guestos"), "rw"),
-                (config_path_host, os.getenv("CODE_CONFIG_MOUNT", "/config"), "rw"),
-                (qvp_bin_path_host, os.getenv("QVP_BINARY_MOUNT", "/opt/qvp"), "rw"),
-                (tools_path_host, os.getenv("TOOLS_MOUNT", "/opt/tools"), "ro"),
-                (arm_path_host, "/usr/local/ARMCompiler6.16", "ro"),
-                (workspace_path_host, os.getenv("WORKSPACE_MOUNT", "/workspace"), "rw"),
-                (kvm_path_host, "/dev/kvm", "rw"),
-            ]
-            
-            for host_path, container_path, mode in volume_mounts:
-                if os.path.exists(host_path):
-                    volumes[host_path] = {
-                        "bind": container_path,
-                        "mode": mode,
-                    }
-            
-            # Get or allocate ports
-            port_manager = PortManager()
+            # Get start_port from user_data if provided
+            start_port = None
             if user_data.get('ports'):
-                # Use provided ports
                 ports_data = user_data['ports']
                 start_port = int(ports_data.get('start_port', ports_data.get('code', 0)))
-            else:
-                # Get existing ports or allocate new ones
-                ports_data = port_manager.get_allocated_ports(username)
-                if not ports_data:
-                    ports_data = port_manager.allocate_ports(username)
-                start_port = int(ports_data["start_port"])
             
-            # Setup port mappings
-            ports = {}
-            ports[os.getenv("CODE_PORT", 8080)] = start_port
-            ports[os.getenv("JUPYTER_PORT", 8088)] = start_port + 1
-            ports[os.getenv("GUEST_OS_SSH_PORT", 22)] = start_port + 2
+            # Build container configuration using helper
+            config = docker_helper.build_container_config(username, dir_deploy, start_port)
             
             # Get container name
             container_name = docker_helper.get_contianer_name(username)
@@ -256,9 +198,9 @@ class DockerContainerManager:
             container, error = self.create_container(
                 image_name=f"{docker_image_name}:{docker_image_tag}",
                 container_name=container_name,
-                ports=ports,
-                volumes=volumes,
-                environment=env,
+                ports=config['ports'],
+                volumes=config['volumes'],
+                environment=config['env'],
                 cpu_count=cpu_count,
                 cpu_percent=int(os.getenv("DOCKER_CPU_PERCENT", 100)),
                 memory_limit=memory_limit,
@@ -452,6 +394,87 @@ class DockerContainerManager:
 
 
 class DockerHelper:
+    def build_container_config(self, username, dir_deploy, start_port=None):
+        """Build container configuration for creation.
+        
+        Args:
+            username: Username for the container
+            dir_deploy: Deployment directory path
+            start_port: Starting port number (optional, will be allocated if not provided)
+        
+        Returns:
+            Dict with container configuration including env, volumes, ports, etc.
+        """
+        # Setup environment variables
+        env = {
+            "PUID": os.geteuid(),
+            "PGID": os.getegid(),
+            "TZ": "Etc/UTC",
+            "DEFAULT_WORKSPACE": os.getenv("DEFAULT_WORKSPACE", "/config/workspace"),
+            "SUDO_PASSWORD": os.getenv("SUDO_PASSWORD", "abc"),
+            "JUPYTER_BASE_URL": f"/user/{username}/jupyter",
+            "JUPYTERHUB_SERVICE_PREFIX": f"/user/{username}/jupyter/",
+        }
+        
+        # Setup volume paths
+        guest_os_path_host = os.path.join(dir_deploy, "guestos")
+        config_path_host = os.path.join(dir_deploy, "code/config")
+        qvp_bin_path_host = os.path.join(dir_deploy, "qvp")
+        tools_path_host = os.path.join(dir_deploy, "tools")
+        arm_path_host = os.path.join(dir_deploy, "tools/ARMCompiler6.16")
+        workspace_path_host = os.path.join(dir_deploy, "workspace")
+        kvm_path_host = "/dev/kvm"
+        
+        # Ensure workspace has proper permissions
+        if os.path.exists(workspace_path_host):
+            try:
+                os.chown(workspace_path_host, 1000, 1000)
+                os.chmod(workspace_path_host, 0o755)
+                logger.debug(f"Updated workspace permissions: {workspace_path_host}")
+            except Exception as e:
+                logger.warning(f"Could not update workspace permissions: {e}")
+        
+        # Setup volumes
+        volumes = {}
+        volume_mounts = [
+            (guest_os_path_host, os.getenv("GUEST_OS_MOUNT", "/opt/guestos"), "rw"),
+            (config_path_host, os.getenv("CODE_CONFIG_MOUNT", "/config"), "rw"),
+            (qvp_bin_path_host, os.getenv("QVP_BINARY_MOUNT", "/opt/qvp"), "rw"),
+            (tools_path_host, os.getenv("TOOLS_MOUNT", "/opt/tools"), "ro"),
+            (arm_path_host, "/usr/local/ARMCompiler6.16", "ro"),
+            (workspace_path_host, os.getenv("WORKSPACE_MOUNT", "/workspace"), "rw"),
+            (kvm_path_host, "/dev/kvm", "rw"),
+        ]
+        
+        for host_path, container_path, mode in volume_mounts:
+            if os.path.exists(host_path):
+                volumes[host_path] = {
+                    "bind": container_path,
+                    "mode": mode,
+                }
+        
+        # Get or allocate ports
+        port_manager = PortManager()
+        if start_port is None:
+            # Get existing ports or allocate new ones
+            ports_data = port_manager.get_allocated_ports(username)
+            if not ports_data:
+                ports_data = port_manager.allocate_ports(username)
+            start_port = int(ports_data["start_port"])
+        
+        # Setup port mappings
+        ports = {}
+        ports[os.getenv("CODE_PORT", 8080)] = start_port
+        ports[os.getenv("JUPYTER_PORT", 8888)] = start_port + 1
+        ports[os.getenv("GUEST_OS_SSH_PORT", 22)] = start_port + 2
+        
+        return {
+            'env': env,
+            'volumes': volumes,
+            'ports': ports,
+            'start_port': start_port
+        }
+    
     def is_valid_dir(self, dir):
         if not os.path.exists(dir):
             return False, "Destination directory does not exist."
@@ -624,66 +647,21 @@ def init_backend_routes(app):
                 }
             )
         
-        guest_os_path_host = os.path.join(dir_deploy, "guestos")
-        config_path_host = os.path.join(dir_deploy, "code/config")
-        qvp_bin_path_host = os.path.join(dir_deploy, "qvp")
-        tools_path_host = os.path.join(dir_deploy, "tools")
-        arm_path_host = os.path.join(dir_deploy, "tools/ARMCompiler6.16")
-        workspace_path_host = os.path.join(dir_deploy, "workspace")
-        kvm_path_host = "/dev/kvm"
-        
-        # Ensure workspace directory exists and has proper permissions
-        os.makedirs(workspace_path_host, exist_ok=True)
-        
-        # Set proper ownership and permissions for workspace directory
-        # The container typically runs with UID 1000 (developer user)
-        try:
-            # Change ownership to UID 1000 (developer) and GID 1000
-            os.chown(workspace_path_host, 1000, 1000)
-            # Set permissions to allow read/write/execute for owner and group
-            os.chmod(workspace_path_host, 0o755)
-            logger.info(f"Set workspace permissions for {workspace_path_host} to UID:1000, GID:1000, mode:755")
-        except PermissionError as e:
-            logger.warning(f"Could not set workspace ownership (may need sudo): {e}")
-        except Exception as e:
-            logger.error(f"Error setting workspace permissions: {e}")
-        
-        volumes = {}
-        volume_mounts = [
-            (guest_os_path_host, os.getenv("GUEST_OS_MOUNT", "/opt/guestos"), "rw"),
-            (config_path_host, os.getenv("CODE_CONFIG_MOUNT", "/config"), "rw"),
-            (qvp_bin_path_host, os.getenv("QVP_BINARY_MOUNT", "/opt/qvp"), "rw"),
-            (tools_path_host, os.getenv("TOOLS_MOUNT", "/opt/tools"), "ro"),
-            (arm_path_host, "/usr/local/ARMCompiler6.16", "ro"),
-            (workspace_path_host, os.getenv("WORKSPACE_MOUNT", "/workspace"), "rw"),
-            (kvm_path_host, "/dev/kvm", "rw"),
-        ]
-        
-        for host_path, container_path, mode in volume_mounts:
-            if os.path.exists(host_path):
-                volumes[host_path] = {
-                    "bind": container_path,
-                    "mode": mode,
-                }
-            else:
-                logger.warning(f"Host directory {host_path} does not exist, skipping mount")
-
+        # Allocate ports first
         port_manager = PortManager()
         new_ports = port_manager.allocate_ports(user)
         start_port = int(new_ports["start_port"])
-
-        ports = {}
-        ports[os.getenv("CODE_PORT", 8080)] = start_port
-        ports[os.getenv("JUPYTER_PORT", 8088)] = start_port + 1
-        ports[os.getenv("GUEST_OS_SSH_PORT", 22)] = start_port + 2
+        
+        # Build container configuration using helper
+        config = docker_helper.build_container_config(user, dir_deploy, start_port)
 
         try:
             container, error = docker_manager.create_container(
                 image_name=f"{docker_image_name}:{docker_image_tag}",
                 container_name=container_name,
-                ports=ports,
-                volumes=volumes,
-                environment=env,
+                ports=config['ports'],
+                volumes=config['volumes'],
+                environment=config['env'],
                 cpu_count=int(os.getenv("DOCKER_CPU", 2)),
                 cpu_percent=int(os.getenv("DOCKER_CPU_PERCENT", 100)),
                 memory_limit=os.getenv("DOCKER_MEM_LMT", "2g"),
@@ -701,9 +679,9 @@ def init_backend_routes(app):
                             "name": container.name,
                             "status": container.status,
                             "port_map": {
-                                "code": start_port,
-                                "jupyter": start_port + 1,
-                                "ssh": start_port + 2,
+                                "code": config['start_port'],
+                                "jupyter": config['start_port'] + 1,
+                                "ssh": config['start_port'] + 2,
                             },
                         },
                     }

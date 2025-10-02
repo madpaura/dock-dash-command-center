@@ -165,15 +165,27 @@ Consider adding:
 
 ## Recent Updates
 
-### Container Recreation from Workdir (2025-01-23)
+### Container Management Optimization (2025-01-23)
 Enhanced container start functionality to automatically recreate containers when they are completely removed:
 
 **Changes Made**:
 - `DockerContainerManager.start_container()`: Added `recreate_if_missing` and `user_data` parameters
 - `DockerContainerManager.create_container_from_workdir()`: New method to recreate containers using existing workdir
+- `DockerHelper.build_container_config()`: **NEW** - Centralized container configuration builder
 - `/api/containers/<container_id>/start` endpoint: Automatically extracts username and recreates container if not found
+- `/api/containers/create` endpoint: Refactored to use shared configuration builder
 - Fixed HTTP 415 error by using `request.get_json(silent=True, force=True)`
 - Fixed Docker memory limit requirement when using memory swap
+
+**Code Optimization**:
+- **Eliminated ~100 lines of duplicate code** between container creation and recreation
+- Created `build_container_config()` helper method that handles:
+  - Environment variable setup
+  - Volume path configuration and mounting
+  - Port allocation and mapping
+  - Workspace permissions
+- Both `/api/containers/create` and `create_container_from_workdir()` now use the same helper
+- **DRY Principle**: Single source of truth for container configuration
 
 **Behavior**:
 - When starting a container that is `exited` or `paused`: Normal start operation
