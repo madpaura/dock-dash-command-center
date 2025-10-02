@@ -98,7 +98,17 @@ class DockerContainerManager:
         finally:
             self.lock.release()
 
-    def start_container(self, container_id_or_name):
+    def start_container(self, container_id_or_name, recreate_if_missing=False, user_data=None):
+        """Start a container. If container is not found and recreate_if_missing=True, recreate it.
+        
+        Args:
+            container_id_or_name: Container ID or name
+            recreate_if_missing: If True, recreate container when not found
+            user_data: Dict with user info needed for recreation (username, ports, etc.)
+        
+        Returns:
+            True if started successfully, False otherwise
+        """
         self.lock.acquire()
         try:
             container = self.client.containers.get(container_id_or_name)
@@ -106,13 +116,166 @@ class DockerContainerManager:
             logger.success(f"Container {container_id_or_name} started successfully")
             return True
         except docker.errors.NotFound:
-            logger.error(f"Container {container_id_or_name} not found")
-            return False
+            logger.warning(f"Container {container_id_or_name} not found")
+            
+            # If recreation is enabled and we have user data, recreate the container
+            if recreate_if_missing and user_data:
+                logger.info(f"Attempting to recreate container {container_id_or_name}")
+                self.lock.release()  # Release lock before calling create_container_from_workdir
+                try:
+                    return self.create_container_from_workdir(user_data)
+                finally:
+                    self.lock.acquire()  # Reacquire lock for finally block
+            else:
+                logger.error(f"Container {container_id_or_name} not found and recreation not enabled")
+                return False
         except docker.errors.APIError as e:
-            logger.error(f"Error stopping container: {e}")
+            logger.error(f"Error starting container: {e}")
             return False
         finally:
             self.lock.release()
+
+    def create_container_from_workdir(self, user_data):
+        """Recreate a container using existing workdir for a user.
+        
+        Args:
+            user_data: Dict containing:
+                - username: User's username
+                - ports: Dict with port mappings (optional, will allocate if not provided)
+                - cpu_count: CPU count (optional, uses env default)
+                - memory_limit: Memory limit (optional, uses env default)
+        
+        Returns:
+            True if container created and started successfully, False otherwise
+        """
+        try:
+            username = user_data.get('username')
+            if not username:
+                logger.error("Username is required to recreate container")
+                return False
+            
+            logger.info(f"Recreating container for user {username} using existing workdir")
+            
+            # Setup environment variables
+            env = {
+                "PUID": os.geteuid(),
+                "PGID": os.getegid(),
+                "TZ": "Etc/UTC",
+                "DEFAULT_WORKSPACE": os.getenv("DEFAULT_WORKSPACE", "/config/workspace"),
+                "SUDO_PASSWORD": os.getenv("SUDO_PASSWORD", "abc"),
+                "JUPYTER_BASE_URL": f"/user/{username}/jupyter",
+                "JUPYTERHUB_SERVICE_PREFIX": f"/user/{username}/jupyter/",
+            }
+            
+            # Get Docker image configuration
+            docker_image_name = os.getenv("DOCKER_IMAGE", "gpu-dev-environment")
+            docker_image_tag = os.getenv("DOCKER_TAG", "latest")
+            
+            # Setup workdir paths
+            dir_deploy = (
+                os.getenv("WORKDIR_DEPLOY", "/home/vms/")
+                + f"{username}-{docker_helper.generate_user_hash(username)}"
+            )
+            
+            # Verify workdir exists
+            if not os.path.exists(dir_deploy):
+                logger.error(f"Workdir {dir_deploy} does not exist for user {username}")
+                return False
+            
+            logger.info(f"Using existing workdir: {dir_deploy}")
+            
+            # Setup volume paths
+            guest_os_path_host = os.path.join(dir_deploy, "guestos")
+            config_path_host = os.path.join(dir_deploy, "code/config")
+            qvp_bin_path_host = os.path.join(dir_deploy, "qvp")
+            tools_path_host = os.path.join(dir_deploy, "tools")
+            arm_path_host = os.path.join(dir_deploy, "tools/ARMCompiler6.16")
+            workspace_path_host = os.path.join(dir_deploy, "workspace")
+            kvm_path_host = "/dev/kvm"
+            
+            # Ensure workspace has proper permissions
+            if os.path.exists(workspace_path_host):
+                try:
+                    os.chown(workspace_path_host, 1000, 1000)
+                    os.chmod(workspace_path_host, 0o755)
+                    logger.info(f"Updated workspace permissions: {workspace_path_host}")
+                except Exception as e:
+                    logger.warning(f"Could not update workspace permissions: {e}")
+            
+            # Setup volumes
+            volumes = {}
+            volume_mounts = [
+                (guest_os_path_host, os.getenv("GUEST_OS_MOUNT", "/opt/guestos"), "rw"),
+                (config_path_host, os.getenv("CODE_CONFIG_MOUNT", "/config"), "rw"),
+                (qvp_bin_path_host, os.getenv("QVP_BINARY_MOUNT", "/opt/qvp"), "rw"),
+                (tools_path_host, os.getenv("TOOLS_MOUNT", "/opt/tools"), "ro"),
+                (arm_path_host, "/usr/local/ARMCompiler6.16", "ro"),
+                (workspace_path_host, os.getenv("WORKSPACE_MOUNT", "/workspace"), "rw"),
+                (kvm_path_host, "/dev/kvm", "rw"),
+            ]
+            
+            for host_path, container_path, mode in volume_mounts:
+                if os.path.exists(host_path):
+                    volumes[host_path] = {
+                        "bind": container_path,
+                        "mode": mode,
+                    }
+            
+            # Get or allocate ports
+            port_manager = PortManager()
+            if user_data.get('ports'):
+                # Use provided ports
+                ports_data = user_data['ports']
+                start_port = int(ports_data.get('start_port', ports_data.get('code', 0)))
+            else:
+                # Get existing ports or allocate new ones
+                ports_data = port_manager.get_allocated_ports(username)
+                if not ports_data:
+                    ports_data = port_manager.allocate_ports(username)
+                start_port = int(ports_data["start_port"])
+            
+            # Setup port mappings
+            ports = {}
+            ports[os.getenv("CODE_PORT", 8080)] = start_port
+            ports[os.getenv("JUPYTER_PORT", 8088)] = start_port + 1
+            ports[os.getenv("GUEST_OS_SSH_PORT", 22)] = start_port + 2
+            
+            # Get container name
+            container_name = docker_helper.get_contianer_name(username)
+            
+            # Get resource limits from user_data or use defaults
+            cpu_count = user_data.get('cpu_count') if user_data.get('cpu_count') else int(os.getenv("DOCKER_CPU", 2))
+            memory_limit = user_data.get('memory_limit') if user_data.get('memory_limit') else os.getenv("DOCKER_MEM_LMT", "2g")
+            
+            # Ensure memory_limit is set when using memory_swap
+            # Docker requires memory_limit to be set when memory_swap is specified
+            if not memory_limit:
+                memory_limit = "2g"  # Default fallback
+            
+            # Create the container
+            container, error = self.create_container(
+                image_name=f"{docker_image_name}:{docker_image_tag}",
+                container_name=container_name,
+                ports=ports,
+                volumes=volumes,
+                environment=env,
+                cpu_count=cpu_count,
+                cpu_percent=int(os.getenv("DOCKER_CPU_PERCENT", 100)),
+                memory_limit=memory_limit,
+                memory_swap=os.getenv("DOCKER_MEM_SWAP", "3g"),
+                host_name=os.getenv("DOCKER_HOSTNAME", "cxl-qvp"),
+            )
+            
+            if container:
+                logger.success(f"Successfully recreated container {container_name} for user {username}")
+                return True
+            else:
+                logger.error(f"Failed to recreate container for user {username}: {error}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error recreating container from workdir: {e}")
+            return False
 
     def stop_container(self, container_id_or_name):
         self.lock.acquire()
@@ -554,9 +717,41 @@ def init_backend_routes(app):
 
     @app.route("/api/containers/<string:container_id>/start", methods=["POST"])
     def start_container(container_id):
-        if docker_manager.start_container(container_id):
-            return jsonify({"success": True})
-        return jsonify({"success": False, "error": "Failed to start container"}), 400
+        """Start a container. If not found, attempt to recreate it from existing workdir."""
+        try:
+            data = request.get_json(silent=True, force=True) or {}
+            logger.info(f"Starting container {container_id} with data: {data}")
+            
+            # Extract username from container name (format: code-server-username-hash)
+            username = None
+            if container_id.startswith('code-server-'):
+                parts = container_id.split('-')
+                if len(parts) >= 3:
+                    # Join all parts between 'code-server-' and the hash (last part)
+                    username = '-'.join(parts[2:-1])
+                    logger.info(f"Extracted username: {username} from container_id: {container_id}")
+            
+            # Prepare user_data for potential recreation
+            user_data = None
+            if username:
+                user_data = {
+                    'username': username,
+                    'ports': data.get('ports'),  # Optional: can be provided by caller
+                    'cpu_count': data.get('cpu_count'),  # Optional
+                    'memory_limit': data.get('memory_limit'),  # Optional
+                }
+                logger.info(f"Prepared user_data for recreation: {user_data}")
+            
+            # Try to start container, with recreation if it doesn't exist
+            if docker_manager.start_container(container_id, recreate_if_missing=True, user_data=user_data):
+                logger.success(f"Container {container_id} started successfully")
+                return jsonify({"success": True})
+            else:
+                logger.error(f"Failed to start container {container_id}")
+                return jsonify({"success": False, "error": "Failed to start container"}), 400
+        except Exception as e:
+            logger.error(f"Error in start_container endpoint: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
 
     @app.route("/api/containers/<string:container_id>/stop", methods=["POST"])
     def stop_container(container_id):

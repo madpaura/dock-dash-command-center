@@ -162,3 +162,33 @@ Consider adding:
    - Add unit tests for new functionality
    - Test both frontend and backend
    - Verify API contract consistency
+
+## Recent Updates
+
+### Container Recreation from Workdir (2025-01-23)
+Enhanced container start functionality to automatically recreate containers when they are completely removed:
+
+**Changes Made**:
+- `DockerContainerManager.start_container()`: Added `recreate_if_missing` and `user_data` parameters
+- `DockerContainerManager.create_container_from_workdir()`: New method to recreate containers using existing workdir
+- `/api/containers/<container_id>/start` endpoint: Automatically extracts username and recreates container if not found
+- Fixed HTTP 415 error by using `request.get_json(silent=True, force=True)`
+- Fixed Docker memory limit requirement when using memory swap
+
+**Behavior**:
+- When starting a container that is `exited` or `paused`: Normal start operation
+- When starting a container that is completely removed: Automatically recreates using existing workdir and allocated ports
+- Preserves user data, workspace files, and port allocations
+- Falls back to existing port allocations or allocates new ones if needed
+- Uses environment defaults for CPU and memory if not provided
+
+**Bug Fixes**:
+- Fixed "You should always set the Memory limit when using Memoryswap limit" Docker error
+- Ensured memory_limit is always set when memory_swap is specified
+- Added proper error handling and logging throughout the recreation flow
+
+**Benefits**:
+- Users can recover from accidentally deleted containers
+- No manual intervention needed to recreate containers
+- Workspace data is preserved across container recreations
+- Seamless user experience in UserDashboard when clicking "Start"
