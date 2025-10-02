@@ -2,11 +2,13 @@ import json
 import hashlib
 import requests
 import os
+import secrets
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from loguru import logger
 
 from database import UserDatabase
+from database.password_reset_repository import PasswordResetRepository
 from utils.helpers import hash_password, get_client_ip
 from utils.validators import is_valid_email, is_valid_username
 from services.nginx_service import NginxService
@@ -18,6 +20,7 @@ class UserService:
         self.db = db
         self.nginx_service = NginxService(nginx_config_file)
         self.agent_port = agent_port
+        self.password_reset_repo = PasswordResetRepository()
     
     def _parse_user_metadata(self, metadata_raw: Optional[str]) -> Dict[str, Any]:
         if not metadata_raw:
@@ -742,3 +745,128 @@ class UserService:
             return server_assignment
         
         return server_assignment
+    
+    # Password Reset Methods
+    
+    def admin_reset_password(self, user_id: int, new_password: str, admin_username: str) -> Dict[str, Any]:
+        """Admin resets a user's password."""
+        result = {
+            'success': False,
+            'message': ''
+        }
+        
+        try:
+            user = self.db.get_user_by_id(user_id)
+            if not user:
+                result['message'] = f'User with ID {user_id} not found'
+                return result
+            
+            # Hash the new password
+            hashed_password = hash_password(new_password)
+            
+            # Update user password
+            update_success = self.db.update_user(user_id, {'password': hashed_password})
+            
+            if update_success:
+                result['success'] = True
+                result['message'] = f'Password reset successfully for user {user["username"]}'
+                
+                # Log the password reset action
+                self.db.log_audit_event(
+                    username=admin_username,
+                    action_type='admin_password_reset',
+                    action_details={
+                        'message': f'Admin {admin_username} reset password for user {user["username"]}',
+                        'target_user': user['username'],
+                        'target_user_id': user_id
+                    },
+                    ip_address=None
+                )
+                
+                logger.info(f"Admin {admin_username} reset password for user {user['username']} (ID: {user_id})")
+            else:
+                result['message'] = 'Failed to update password in database'
+                
+        except Exception as e:
+            logger.error(f"Error resetting password for user {user_id}: {e}")
+            result['message'] = f'Error: {str(e)}'
+            
+        return result
+    
+    def request_password_reset(self, user_id: int, reason: Optional[str] = None) -> Dict[str, Any]:
+        """User requests a password reset."""
+        result = {
+            'success': False,
+            'message': ''
+        }
+        
+        try:
+            user = self.db.get_user_by_id(user_id)
+            if not user:
+                result['message'] = f'User with ID {user_id} not found'
+                return result
+            
+            # Check if user already has a pending request
+            if self.password_reset_repo.has_pending_request(user_id):
+                result['message'] = 'You already have a pending password reset request'
+                return result
+            
+            # Create the reset request
+            request_created = self.password_reset_repo.create_reset_request(user_id, reason)
+            
+            if request_created:
+                result['success'] = True
+                result['message'] = 'Password reset request submitted successfully. An admin will process your request.'
+                
+                # Log the request
+                self.db.log_audit_event(
+                    username=user['username'],
+                    action_type='password_reset_requested',
+                    action_details={
+                        'message': f'User {user["username"]} requested password reset',
+                        'reason': reason
+                    },
+                    ip_address=None
+                )
+                
+                logger.info(f"User {user['username']} (ID: {user_id}) requested password reset")
+            else:
+                result['message'] = 'Failed to create password reset request'
+                
+        except Exception as e:
+            logger.error(f"Error creating password reset request for user {user_id}: {e}")
+            result['message'] = f'Error: {str(e)}'
+            
+        return result
+    
+    def get_pending_reset_requests(self) -> List[Dict[str, Any]]:
+        """Get all pending password reset requests."""
+        try:
+            return self.password_reset_repo.get_pending_requests()
+        except Exception as e:
+            logger.error(f"Error fetching pending reset requests: {e}")
+            return []
+    
+    def get_pending_reset_count(self) -> int:
+        """Get count of pending password reset requests."""
+        try:
+            return self.password_reset_repo.get_pending_count()
+        except Exception as e:
+            logger.error(f"Error fetching pending reset count: {e}")
+            return 0
+    
+    def complete_reset_request(self, request_id: int, admin_id: int) -> bool:
+        """Mark a password reset request as completed."""
+        try:
+            return self.password_reset_repo.complete_request(request_id, admin_id)
+        except Exception as e:
+            logger.error(f"Error completing reset request {request_id}: {e}")
+            return False
+    
+    def reject_reset_request(self, request_id: int, admin_id: int) -> bool:
+        """Mark a password reset request as rejected."""
+        try:
+            return self.password_reset_repo.reject_request(request_id, admin_id)
+        except Exception as e:
+            logger.error(f"Error rejecting reset request {request_id}: {e}")
+            return False

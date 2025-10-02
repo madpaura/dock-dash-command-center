@@ -13,11 +13,13 @@ import {
   Trash2,
   Circle,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  KeyRound
 } from 'lucide-react';
 import { adminApi, type AdminUser, type AdminStats, type UserApprovalResponse, type ContainerCreationResult } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { EditUserDialog } from '../components/EditUserDialog';
+import { PasswordResetDialog } from '../components/PasswordResetDialog';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/Toast';
 import {
@@ -68,6 +70,8 @@ export const AdminUsers: React.FC = () => {
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPasswordResetDialogOpen, setIsPasswordResetDialogOpen] = useState(false);
+  const [userToResetPassword, setUserToResetPassword] = useState<AdminUser | null>(null);
 
   const fetchData = async (isRefresh = false) => {
     if (!user?.token) return;
@@ -235,6 +239,28 @@ export const AdminUsers: React.FC = () => {
     setDialogMode('edit');
   };
 
+  const handleResetPassword = (userToReset: AdminUser) => {
+    setUserToResetPassword(userToReset);
+    setIsPasswordResetDialogOpen(true);
+  };
+
+  const handlePasswordResetSubmit = async (newPassword: string) => {
+    if (!user?.token || !userToResetPassword) return;
+
+    try {
+      const response = await adminApi.resetUserPassword(userToResetPassword.id, newPassword, user.token);
+      if (response.success) {
+        success('Password reset successfully!', 'The new password has been set for the user.');
+        setIsPasswordResetDialogOpen(false);
+        setUserToResetPassword(null);
+      } else {
+        showError('Failed to reset password', response.error || 'Unknown error occurred');
+      }
+    } catch (err) {
+      showError('Failed to reset password', 'Network error occurred');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center">
@@ -377,8 +403,18 @@ export const AdminUsers: React.FC = () => {
                           size="sm" 
                           className="h-8 w-8 p-0"
                           onClick={() => handleEditUser(user)}
+                          title="Edit user"
                         >
                           <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleResetPassword(user)}
+                          title="Reset password"
+                        >
+                          <KeyRound className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -386,7 +422,7 @@ export const AdminUsers: React.FC = () => {
                           className={`h-8 w-8 p-0 text-destructive hover:text-destructive ${user.role?.toLowerCase() === 'admin' ? 'opacity-50 cursor-not-allowed' : ''}`}
                           onClick={() => { if (user.role?.toLowerCase() !== 'admin') handleDeleteUser(user.id); }}
                           disabled={(isDeleting && userToDelete === user.id) || user.role?.toLowerCase() === 'admin'}
-                          title={user.role?.toLowerCase() === 'admin' ? 'Admin users cannot be deleted' : undefined}
+                          title={user.role?.toLowerCase() === 'admin' ? 'Admin users cannot be deleted' : 'Delete user'}
                         >
                           {isDeleting && userToDelete === user.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -485,6 +521,20 @@ export const AdminUsers: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Password Reset Dialog */}
+      {userToResetPassword && (
+        <PasswordResetDialog
+          isOpen={isPasswordResetDialogOpen}
+          onClose={() => {
+            setIsPasswordResetDialogOpen(false);
+            setUserToResetPassword(null);
+          }}
+          onReset={handlePasswordResetSubmit}
+          userName={userToResetPassword.name}
+          userEmail={userToResetPassword.email}
+        />
+      )}
       
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />

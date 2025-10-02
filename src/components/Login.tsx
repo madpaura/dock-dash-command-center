@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from './ThemeToggle';
+import { ForgotPasswordDialog } from './ForgotPasswordDialog';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -12,6 +13,7 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -19,9 +21,15 @@ export const Login: React.FC = () => {
     setIsLoading(true);
     setError('');
 
+    console.log('Login: Attempting login...');
     const result = await login(email, password);
+    console.log('Login: Result:', result);
+    
     if (!result.success) {
       setError(result.error || 'Invalid credentials');
+      console.error('Login: Failed -', result.error);
+    } else {
+      console.log('Login: Success! User should be redirected automatically.');
     }
     setIsLoading(false);
   };
@@ -61,9 +69,18 @@ export const Login: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPasswordOpen(true)}
+                  className="text-sm text-black dark:text-white hover:text-gray-700 dark:hover:text-gray-300 transition-colors font-medium"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -122,6 +139,12 @@ export const Login: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <ForgotPasswordDialog
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+      />
     </div>
   );
 };

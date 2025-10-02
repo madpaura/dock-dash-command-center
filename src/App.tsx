@@ -41,7 +41,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'admi
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
+  console.log('AppRoutes: isAuthenticated:', isAuthenticated, 'user:', user, 'isLoading:', isLoading);
+
   if (isLoading) {
+    console.log('AppRoutes: Still loading...');
     return <LoadingScreen />;
   }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, RefreshCw, Play, RotateCcw, BookOpen, Copy, Check, FileText } from 'lucide-react'; 
+import { Terminal, RefreshCw, Play, RotateCcw, BookOpen, Copy, Check, FileText, KeyRound } from 'lucide-react'; 
 import { useAuth } from '../hooks/useAuth';
 import { VSCodeIcon } from '../components/icons/VSCodeIcon';
 import { JupyterIcon } from '../components/icons/JupyterIcon';
@@ -7,9 +7,11 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../com
 import { StatusBar } from '../components/StatusBar';
 import { LogsWindow } from '../components/LogsWindow';
 import { ResourceMonitor } from '../components/ResourceMonitor';
+import { UserPasswordResetRequestDialog } from '../components/UserPasswordResetRequestDialog';
 import { userServicesApi, UserServicesDataFlat, GPUInfo } from '../lib/api';
 import { useSidebar } from '../hooks/useSidebar';
 import { API_ENDPOINTS, getEndpointUrl } from '../config/endpoints';
+import { Button } from '../components/ui/button';
 
 interface SystemStats {
   cpu: {
@@ -66,6 +68,8 @@ export const UserDashboard: React.FC = () => {
   const [logsWindowOpen, setLogsWindowOpen] = useState(false);
   const [logsWindowMinimized, setLogsWindowMinimized] = useState(false);
   const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
+  const [isPasswordResetDialogOpen, setIsPasswordResetDialogOpen] = useState(false);
+  const [resetRequestSuccess, setResetRequestSuccess] = useState(false);
 
   // Fetch user services data on component mount
   useEffect(() => {
@@ -78,11 +82,18 @@ export const UserDashboard: React.FC = () => {
         const response = await userServicesApi.getUserServices(user.token);
         
         if (response.success && response.data) {
-          const userData = response.data.data as unknown as UserServicesDataFlat;
+          console.log('UserDashboard: Raw response.data:', response.data);
+          
+          // Check if data is already the correct structure or needs unwrapping
+          const userData = (response.data as any).data 
+            ? (response.data as any).data as UserServicesDataFlat
+            : response.data as unknown as UserServicesDataFlat;
+          
+          console.log('UserDashboard: Processed userData:', userData);
           setUserServices(userData);
           
           // Update stats with real server data if available
-          if (userData.server_stats) {
+          if (userData && userData.server_stats) {
             const serverStats = userData.server_stats;
             setStats({
               cpu: {
@@ -197,11 +208,15 @@ export const UserDashboard: React.FC = () => {
       const response = await userServicesApi.getUserServices(user.token);
       
       if (response.success && response.data) {
-        const userData = response.data.data as unknown as UserServicesDataFlat;
+        // Check if data is already the correct structure or needs unwrapping
+        const userData = (response.data as any).data 
+          ? (response.data as any).data as UserServicesDataFlat
+          : response.data as unknown as UserServicesDataFlat;
+        
         setUserServices(userData);
         
         // Update stats with real server data if available
-        if (userData.server_stats) {
+        if (userData && userData.server_stats) {
           const serverStats = userData.server_stats;
           setStats({
             cpu: {
@@ -287,6 +302,23 @@ export const UserDashboard: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
+  const handlePasswordResetRequest = async (reason: string) => {
+    if (!user?.token) return;
+
+    try {
+      const response = await userServicesApi.requestPasswordReset(user.token, reason);
+      if (response.success) {
+        setResetRequestSuccess(true);
+        setTimeout(() => setResetRequestSuccess(false), 5000);
+      } else {
+        setError(response.error || 'Failed to submit password reset request');
+      }
+    } catch (err) {
+      setError('Failed to submit password reset request');
+      console.error('Error requesting password reset:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="pb-8 p-6 mb-6">
@@ -298,6 +330,20 @@ export const UserDashboard: React.FC = () => {
             {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
           </div>
           <div className="flex items-center gap-4">
+            {resetRequestSuccess && (
+              <div className="text-xs bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 px-3 py-1 rounded-md border border-green-200 dark:border-green-800">
+                Password reset request submitted successfully!
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPasswordResetDialogOpen(true)}
+              className="gap-2"
+            >
+              <KeyRound className="w-4 h-4" />
+              Request Password Reset
+            </Button>
             {error && (
               <button 
                 onClick={handleRefresh}
@@ -506,6 +552,13 @@ export const UserDashboard: React.FC = () => {
           onClose={() => setLogsWindowOpen(false)}
         />
       )}
+
+      {/* Password Reset Request Dialog */}
+      <UserPasswordResetRequestDialog
+        isOpen={isPasswordResetDialogOpen}
+        onClose={() => setIsPasswordResetDialogOpen(false)}
+        onSubmit={handlePasswordResetRequest}
+      />
     </div>
   );
 };

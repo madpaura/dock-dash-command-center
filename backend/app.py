@@ -299,6 +299,144 @@ def create_admin_user():
         return jsonify({'success': False, 'error': 'Failed to create user'}), 500
 
 
+# Password reset endpoints
+@app.route('/api/admin/users/<int:user_id>/reset-password', methods=['POST'])
+def admin_reset_user_password(user_id):
+    """Admin resets a user's password."""
+    session, error_response, status_code = require_admin_auth()
+    if error_response:
+        return error_response, status_code
+    
+    try:
+        data = request.get_json()
+        new_password = data.get('new_password')
+        
+        if not new_password:
+            return jsonify({'success': False, 'error': 'New password is required'}), 400
+        
+        if len(new_password) < 6:
+            return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
+        
+        admin_username = session.get('username')
+        result = user_service.admin_reset_password(user_id, new_password, admin_username)
+        
+        # If there's a pending reset request for this user, mark it as completed
+        if result['success']:
+            pending_requests = user_service.get_pending_reset_requests()
+            for req in pending_requests:
+                if req['user_id'] == user_id:
+                    user_service.complete_reset_request(req['id'], session.get('id'))
+                    break
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"Error resetting password: {e}")
+        return jsonify({'success': False, 'error': 'Failed to reset password'}), 500
+
+
+@app.route('/api/user/request-password-reset', methods=['POST'])
+def request_password_reset():
+    """User requests a password reset."""
+    session, error_response, status_code = require_session_auth()
+    if error_response:
+        return error_response, status_code
+    
+    try:
+        data = request.get_json()
+        reason = data.get('reason', '')
+        user_id = session.get('id')
+        
+        result = user_service.request_password_reset(user_id, reason)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"Error requesting password reset: {e}")
+        return jsonify({'success': False, 'error': 'Failed to request password reset'}), 500
+
+
+@app.route('/api/public/request-password-reset', methods=['POST'])
+def public_request_password_reset():
+    """Public endpoint for password reset requests (no authentication required)."""
+    try:
+        data = request.get_json()
+        email = data.get('email', '')
+        reason = data.get('reason', '')
+        
+        if not email:
+            return jsonify({'success': False, 'error': 'Email is required'}), 400
+        
+        # Find user by email
+        user = user_service.db.get_user_by_email(email)
+        if not user:
+            # Don't reveal if user exists or not for security
+            return jsonify({
+                'success': True,
+                'message': 'If your email is registered, a password reset request has been submitted.'
+            })
+        
+        user_id = user['id']
+        result = user_service.request_password_reset(user_id, reason)
+        
+        # Always return success to prevent email enumeration
+        return jsonify({
+            'success': True,
+            'message': 'If your email is registered, a password reset request has been submitted.'
+        })
+            
+    except Exception as e:
+        logger.error(f"Error requesting password reset: {e}")
+        return jsonify({'success': False, 'error': 'Failed to request password reset'}), 500
+
+
+@app.route('/api/admin/password-reset-requests', methods=['GET'])
+def get_password_reset_requests():
+    """Get all pending password reset requests."""
+    session, error_response, status_code = require_admin_auth()
+    if error_response:
+        return error_response, status_code
+    
+    try:
+        requests_list = user_service.get_pending_reset_requests()
+        count = user_service.get_pending_reset_count()
+        return jsonify({
+            'success': True,
+            'requests': requests_list,
+            'count': count
+        })
+    except Exception as e:
+        logger.error(f"Error fetching password reset requests: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch requests'}), 500
+
+
+@app.route('/api/admin/password-reset-requests/<int:request_id>/reject', methods=['POST'])
+def reject_password_reset_request(request_id):
+    """Reject a password reset request."""
+    session, error_response, status_code = require_admin_auth()
+    if error_response:
+        return error_response, status_code
+    
+    try:
+        admin_id = session.get('id')
+        success = user_service.reject_reset_request(request_id, admin_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Password reset request rejected'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to reject request'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error rejecting password reset request: {e}")
+        return jsonify({'success': False, 'error': 'Failed to reject request'}), 500
+
+
 # Server management endpoints
 @app.route('/api/server-resources', methods=['GET'])
 def get_server_resources():

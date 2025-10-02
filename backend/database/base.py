@@ -90,6 +90,20 @@ class DatabaseManager:
             INDEX idx_session_token (session_token),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
+
+        CREATE TABLE IF NOT EXISTS password_reset_requests (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status ENUM('pending', 'completed', 'rejected') DEFAULT 'pending',
+            admin_id INT,
+            completed_at TIMESTAMP NULL,
+            reason TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_status (status),
+            INDEX idx_user_id (user_id)
+        );
         """
         
         conn = self.get_connection()

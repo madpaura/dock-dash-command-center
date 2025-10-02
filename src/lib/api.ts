@@ -84,14 +84,18 @@ async function fetchApi<T>(
       },
     });
     
-    const data = await response.json();
+    const jsonResponse = await response.json();
     
     if (!response.ok) {
       return {
         success: false,
-        error: data.message || 'An error occurred',
+        error: jsonResponse.error || jsonResponse.message || 'An error occurred',
       };
     }
+    
+    // Backend returns {success: true, data: {...}}
+    // Extract the data field if it exists, otherwise use the whole response
+    const data = jsonResponse.data !== undefined ? jsonResponse.data : jsonResponse;
     
     return {
       success: true,
@@ -109,28 +113,11 @@ async function fetchApi<T>(
  * Authentication related API calls
  */
 export const authApi = {
-  login: async (email: string, password: string) => {
-    const response = await fetch(`${API_BASE_URL}/login`, {
+  async login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
+    return fetchApi<LoginResponse>('/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({ email, password }),
     });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      return {
-        success: false,
-        error: data.error || 'Login failed',
-      };
-    }
-    
-    return {
-      success: true,
-      data: data.data,
-    };
   },
   
   logout: async (token: string) => {
@@ -183,6 +170,13 @@ export const authApi = {
     };
   },
   
+  requestPasswordResetPublic: async (email: string, reason?: string): Promise<ApiResponse<{ message: string }>> => {
+    return fetchApi('/public/request-password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email, reason }),
+    });
+  },
+
   register: async (name: string, email: string, password: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/register`, {
@@ -377,6 +371,16 @@ export interface AuditLog {
   action_type?: string;
 }
 
+export interface PasswordResetRequest {
+  id: number;
+  user_id: number;
+  username: string;
+  email: string;
+  requested_at: string;
+  reason?: string;
+  status: 'pending' | 'completed' | 'rejected';
+}
+
 export const adminApi = {
   async getAdminUsers(token: string): Promise<ApiResponse<{ users: AdminUser[] }>> {
     return fetchApi<{ users: AdminUser[] }>('/admin/users', {
@@ -461,6 +465,45 @@ export const adminApi = {
   getServersForUsers: async (token: string): Promise<ApiResponse<{ servers: ServerForUsers[] }>> => {
     return fetchApi('/admin/servers/for-users', {
       method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Password reset methods
+  async resetUserPassword(
+    userId: string, 
+    newPassword: string, 
+    token: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ new_password: newPassword }),
+    });
+  },
+
+  async getPasswordResetRequests(token: string): Promise<ApiResponse<{ 
+    requests: PasswordResetRequest[];
+    count: number;
+  }>> {
+    return fetchApi('/admin/password-reset-requests', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  async rejectPasswordResetRequest(
+    requestId: number, 
+    token: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/password-reset-requests/${requestId}/reject`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -912,6 +955,19 @@ export const userServicesApi = {
     }
     
     return response.blob();
+  },
+
+  async requestPasswordReset(
+    token: string,
+    reason?: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi('/user/request-password-reset', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason }),
+    });
   }
 };
 

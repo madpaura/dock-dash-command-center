@@ -1,8 +1,9 @@
 
 import React from 'react';
-import { Bell, Settings, User, LogOut, Cpu } from 'lucide-react';
+import { Settings, User, LogOut, Cpu } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { ThemeToggle } from './ThemeToggle';
+import { PasswordResetNotifications } from './PasswordResetNotifications';
 
 export const Header: React.FC = () => {
   const { user, logout } = useAuth();
@@ -24,9 +25,7 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
-            <Bell className="w-5 h-5" />
-          </button>
+          <PasswordResetNotifications />
           <ThemeToggle />
           <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
             <Settings className="w-5 h-5" />
