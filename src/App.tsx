@@ -14,6 +14,7 @@ import { AdminImages } from './pages/AdminImages';
 import AdminContainerManager from './pages/AdminContainerManager';
 import AdminTraffic from './pages/AdminTraffic';
 import { AdminDockerBuilder } from './pages/AdminDockerBuilder';
+import AdminGuestOS from './pages/AdminGuestOS';
 import { UserDashboard } from './pages/UserDashboard';
 import { UserContainers } from './pages/UserContainers';
 import { UserFileBrowser } from './pages/UserFileBrowser';
@@ -128,6 +129,12 @@ const AppRoutes: React.FC = () => {
       <Route path="/admin/docker-builder" element={
         <ProtectedRoute requiredRole="admin">
           <AdminDockerBuilder />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/admin/guest-os" element={
+        <ProtectedRoute requiredRole="admin">
+          <AdminGuestOS />
         </ProtectedRoute>
       } />
       

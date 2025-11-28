@@ -1,7 +1,7 @@
 #!/bin/bash
 # This script ensures the dev-services site is enabled
 
-CONFIG_SOURCE="/home/vishwa/gpu/dock-dash-command-center/backend/nginx/sites-available/dev-services"
+CONFIG_SOURCE="/home/vishwa/workspace/gpu/dock-dash-command-center/backend/nginx/sites-available/dev-services"
 CONFIG_TARGET="/etc/nginx/sites-enabled/dev-services"
 
 # Check if the symlink already exists

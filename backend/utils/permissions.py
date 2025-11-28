@@ -35,6 +35,10 @@ PERMISSIONS = {
         'manage_projects': True,
         'build_images': True,
         'push_images': True,
+        # Guest OS upload permissions
+        'view_upload_servers': True,
+        'manage_upload_servers': True,
+        'upload_guest_os': True,
     },
     'qvp': {
         'view_dashboard': True,
@@ -60,6 +64,10 @@ PERMISSIONS = {
         'manage_projects': True,
         'build_images': True,
         'push_images': True,
+        # Guest OS upload permissions - QVP has FULL access
+        'view_upload_servers': True,
+        'manage_upload_servers': True,
+        'upload_guest_os': True,
     },
     'regular': {
         'view_dashboard': False,
@@ -85,6 +93,10 @@ PERMISSIONS = {
         'manage_projects': False,
         'build_images': False,
         'push_images': False,
+        # Guest OS upload permissions
+        'view_upload_servers': False,
+        'manage_upload_servers': False,
+        'upload_guest_os': False,
     }
 }
 
