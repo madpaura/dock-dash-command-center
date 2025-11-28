@@ -171,6 +171,51 @@ class DatabaseManager:
             INDEX idx_status (status),
             INDEX idx_started_at (started_at)
         );
+
+        CREATE TABLE IF NOT EXISTS upload_servers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            ip_address VARCHAR(255) NOT NULL,
+            port INT DEFAULT 22,
+            protocol ENUM('sftp', 'scp', 'local') DEFAULT 'sftp',
+            username VARCHAR(100),
+            password VARCHAR(255),
+            ssh_key TEXT,
+            base_path VARCHAR(500) NOT NULL,
+            version_file_path VARCHAR(500),
+            is_active BOOLEAN DEFAULT TRUE,
+            metadata JSON,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_name (name),
+            INDEX idx_is_active (is_active)
+        );
+
+        CREATE TABLE IF NOT EXISTS guest_os_uploads (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            server_id INT NOT NULL,
+            image_name VARCHAR(100) NOT NULL,
+            file_name VARCHAR(255) NOT NULL,
+            file_path VARCHAR(500) NOT NULL,
+            file_size BIGINT,
+            file_type VARCHAR(20),
+            version VARCHAR(50) NOT NULL,
+            checksum VARCHAR(128),
+            changelog TEXT,
+            status ENUM('uploading', 'completed', 'failed') DEFAULT 'uploading',
+            error_message TEXT,
+            uploaded_by INT,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP NULL,
+            metadata JSON,
+            FOREIGN KEY (server_id) REFERENCES upload_servers(id) ON DELETE CASCADE,
+            FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_server_id (server_id),
+            INDEX idx_image_name (image_name),
+            INDEX idx_status (status)
+        );
         """
         
         conn = self.get_connection()

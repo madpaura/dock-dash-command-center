@@ -14,7 +14,8 @@ import {
   User,
   Info,
   TrendingUp,
-  Hammer
+  Hammer,
+  Upload
 } from 'lucide-react';
 import { useSidebar } from '../hooks/useSidebar';
 import { usePermissions, UserPermissions } from '../hooks/usePermissions';
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   { path: '/admin/containers', label: 'Containers', icon: Container },
   { path: '/admin/images', label: 'Images', icon: Image },
   { path: '/admin/docker-builder', label: 'Docker Builder', icon: Hammer, requiresPermission: 'view_projects' },
+  { path: '/admin/guest-os', label: 'Guest OS', icon: Upload, requiresPermission: 'view_upload_servers' },
   { path: '/admin/users', label: 'Users', icon: Users, requiresPermission: 'manage_users' },
   { path: '/admin/traffic', label: 'Traffic', icon: TrendingUp },
   { path: '/admin/logs', label: 'Logs', icon: FileText },

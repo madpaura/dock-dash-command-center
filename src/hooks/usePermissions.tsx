@@ -24,6 +24,10 @@ export interface UserPermissions {
   manage_projects: boolean;
   build_images: boolean;
   push_images: boolean;
+  // Guest OS upload permissions
+  view_upload_servers: boolean;
+  manage_upload_servers: boolean;
+  upload_guest_os: boolean;
 }
 
 // Default permissions for each role
@@ -52,6 +56,10 @@ const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     manage_projects: true,
     build_images: true,
     push_images: true,
+    // Guest OS upload permissions
+    view_upload_servers: true,
+    manage_upload_servers: true,
+    upload_guest_os: true,
   },
   qvp: {
     view_dashboard: true,
@@ -77,6 +85,10 @@ const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     manage_projects: true,
     build_images: true,
     push_images: true,
+    // Guest OS upload permissions - QVP has FULL access
+    view_upload_servers: true,
+    manage_upload_servers: true,
+    upload_guest_os: true,
   },
   user: {
     view_dashboard: false,
@@ -102,6 +114,10 @@ const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     manage_projects: false,
     build_images: false,
     push_images: false,
+    // Guest OS upload permissions
+    view_upload_servers: false,
+    manage_upload_servers: false,
+    upload_guest_os: false,
   },
 };
 
