@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   Table,
   TableBody,
@@ -43,6 +44,7 @@ import { dockerApi, DockerImage as BackendDockerImage, DockerImagesResponse, Ser
 
 export const AdminImages: React.FC = () => {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [images, setImages] = useState<BackendDockerImage[]>([]);
   const [servers, setServers] = useState<ServerListItem[]>([]);
@@ -315,13 +317,15 @@ export const AdminImages: React.FC = () => {
                           <Layers className="h-4 w-4 mr-1" />
                           Details
                         </Button>
-                        <Button
-                          size="sm"
-                          className="bg-gray-800 hover:bg-black text-white"
-                          onClick={() => handleDeleteImage(image.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {can('delete_image') && (
+                          <Button
+                            size="sm"
+                            className="bg-gray-800 hover:bg-black text-white"
+                            onClick={() => handleDeleteImage(image.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

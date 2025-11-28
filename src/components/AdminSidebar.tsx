@@ -16,22 +16,35 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { useSidebar } from '../hooks/useSidebar';
+import { usePermissions, UserPermissions } from '../hooks/usePermissions';
 
-const navItems = [
+interface NavItem {
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  exact?: boolean;
+  requiresPermission?: keyof UserPermissions;
+}
+
+const navItems: NavItem[] = [
   { path: '/admin', label: 'Dashboard', icon: BarChart3, exact: true },
   { path: '/admin/servers', label: 'Servers', icon: HardDrive },
   { path: '/admin/containers', label: 'Containers', icon: Container },
   { path: '/admin/images', label: 'Images', icon: Image },
-  { path: '/admin/users', label: 'Users', icon: Users },
+  { path: '/admin/users', label: 'Users', icon: Users, requiresPermission: 'manage_users' },
   { path: '/admin/traffic', label: 'Traffic', icon: TrendingUp },
   { path: '/admin/logs', label: 'Logs', icon: FileText },
-  // { path: '/admin/monitoring', label: 'Monitoring', icon: Activity },
-  // { path: '/admin/networks', label: 'Networks', icon: Network },
-  // { path: '/admin/volumes', label: 'Volumes', icon: HardDrive },
 ];
 
 export const AdminSidebar: React.FC = () => {
   const { collapsed, toggleCollapsed } = useSidebar();
+  const { can } = usePermissions();
+
+  // Filter nav items based on permissions
+  const filteredNavItems = navItems.filter(item => {
+    if (!item.requiresPermission) return true;
+    return can(item.requiresPermission);
+  });
   return (
     <aside className={`fixed left-0 top-16 ${collapsed ? 'w-16' : 'w-64'} h-[calc(100vh-4rem)] bg-sidebar backdrop-blur-sm border-r border-sidebar-border overflow-y-auto transition-all duration-300 flex flex-col`}>
       <div className="flex justify-end p-2">
@@ -52,7 +65,7 @@ export const AdminSidebar: React.FC = () => {
           </div>
         )}
         
-        {navItems.map((item) => (
+        {filteredNavItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

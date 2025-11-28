@@ -7,6 +7,7 @@ from database import UserDatabase
 from models.session import SessionData, LoginRequest, LoginResponse, RegisterRequest
 from utils.helpers import generate_session_token, hash_password, get_client_ip
 from utils.validators import is_valid_email, is_valid_password, is_valid_username
+from utils.permissions import get_role_from_user, get_user_permissions
 
 
 class AuthService:
@@ -43,13 +44,19 @@ class AuthService:
                         ip_address
                     )
                     
+                    # Determine role from user_type (with backward compatibility)
+                    role = get_role_from_user(user)
+                    permissions = get_user_permissions(user.get('user_type', 'regular'))
+                    
                     return LoginResponse(
                         success=True,
                         message="Login successful",
                         token=session_token,
                         user_id=user["id"],
                         username=user["username"],
-                        role='admin' if user["is_admin"] else 'user'
+                        role=role,
+                        user_type=user.get('user_type', 'admin' if user['is_admin'] else 'regular'),
+                        permissions=permissions
                     )
             
             self.db.log_audit_event(

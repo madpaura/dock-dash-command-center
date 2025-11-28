@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 
 
@@ -33,6 +33,8 @@ class LoginResponse:
     user_id: Optional[int] = None
     username: Optional[str] = None
     role: Optional[str] = None
+    user_type: Optional[str] = None
+    permissions: Optional[Dict[str, bool]] = None
 
 
 @dataclass

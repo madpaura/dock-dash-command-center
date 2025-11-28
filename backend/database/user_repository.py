@@ -17,19 +17,25 @@ class UserRepository:
     def create_user(self, user_data: Dict) -> bool:
         """Create a new user."""
         query = """
-        INSERT INTO users (username, password, email, is_admin, is_approved, metadata)
-        VALUES (%(username)s, %(password)s, %(email)s, %(is_admin)s, %(is_approved)s, %(metadata)s)
+        INSERT INTO users (username, password, email, is_admin, is_approved, user_type, metadata)
+        VALUES (%(username)s, %(password)s, %(email)s, %(is_admin)s, %(is_approved)s, %(user_type)s, %(metadata)s)
         """
         conn = self.db_manager.get_connection()
         try:
             cursor = conn.cursor()
             metadata = user_data.get('metadata', {})
+            # Determine user_type from is_admin if not explicitly set
+            user_type = user_data.get('user_type')
+            if not user_type:
+                user_type = 'admin' if user_data.get('is_admin', False) else 'regular'
+            
             cursor.execute(query, {
                 'username': user_data['username'],
                 'password': user_data['password'],
                 'email': user_data['email'],
                 'is_admin': user_data.get('is_admin', False),
                 'is_approved': user_data.get('is_approved', False),
+                'user_type': user_type,
                 'metadata': json.dumps(metadata)
             })
             conn.commit()
@@ -98,7 +104,7 @@ class UserRepository:
 
     def update_user(self, user_id: int, update_data: Dict) -> bool:
         """Update user information."""
-        allowed_fields = ['email', 'password', 'is_approved', 'is_admin', 'redirect_url', 'status', 'metadata']
+        allowed_fields = ['email', 'password', 'is_approved', 'is_admin', 'user_type', 'redirect_url', 'status', 'metadata']
         update_fields = []
         values = []
         

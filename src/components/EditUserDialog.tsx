@@ -173,14 +173,16 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
     setIsLoading(true);
     try {
       const selectedServerData = servers.find(s => s.id === selectedServer);
+      const isAdminRole = ['QVP', 'Admin'].includes(formData.role);
+      
       onCreate?.({
         name: formData.name,
         email: formData.email,
         password: formData.password,
         role: formData.role,
-        status: formData.status,
-        server: selectedServerData?.name || selectedServerData?.ip || 'Server 1',
-        resources: resourcePreset === 'custom' ? customResources : resourcePresets[resourcePreset]
+        status: isAdminRole ? 'Running' : formData.status,  // Admin/QVP users are always "Running"
+        server: isAdminRole ? '' : (selectedServerData?.name || selectedServerData?.ip || 'Server 1'),
+        resources: isAdminRole ? { cpu: '', ram: '', gpu: '' } : (resourcePreset === 'custom' ? customResources : resourcePresets[resourcePreset])
       });
       onClose();
     } catch (error) {
@@ -211,6 +213,9 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
   const isPendingApproval = mode === 'edit' && (user?.role === 'Pending' || user?.status === 'Stopped');
   const isCreateMode = mode === 'create';
   const selectedServerData = servers.find(s => s.id === selectedServer);
+  
+  // QVP and Admin users don't need container assignment
+  const needsContainerAssignment = !['QVP', 'Admin'].includes(formData.role);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -279,7 +284,8 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="Admin">Admin (Full Access)</SelectItem>
+                      <SelectItem value="QVP">QVP (Restricted Admin)</SelectItem>
                       <SelectItem value="Developer">Developer</SelectItem>
                       <SelectItem value="User">User</SelectItem>
                       <SelectItem value="Pending">Pending</SelectItem>
@@ -303,7 +309,8 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
             </CardContent>
           </Card>
 
-          {/* Server Assignment */}
+          {/* Server Assignment - Only show for non-admin roles that need containers */}
+          {needsContainerAssignment && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -368,8 +375,10 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
               </div>
             </CardContent>
           </Card>
+          )}
 
-          {/* Resource Allocation */}
+          {/* Resource Allocation - Only show for non-admin roles that need containers */}
+          {needsContainerAssignment && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -433,6 +442,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
               </div>
             </CardContent>
           </Card>
+          )}
         </div>
 
         <DialogFooter className="gap-2">

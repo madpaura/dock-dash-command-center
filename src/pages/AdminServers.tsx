@@ -16,6 +16,7 @@ import {
 } from '../components/ui/alert-dialog';
 import { serverApi, ServerInfo, ServerStats } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServerSettingsDialog } from '../components/ServerSettingsDialog';
 import { SSHTerminal } from '../components/SSHTerminal';
 import { SSHConnectionDialog } from '../components/SSHConnectionDialog';
@@ -24,6 +25,7 @@ import { ServerCleanupDialog } from '../components/ServerCleanupDialog';
 
 export const AdminServers: React.FC = () => {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const token = user?.token;
   const [servers, setServers] = useState<ServerInfo[]>([]);
   const [stats, setStats] = useState<ServerStats | null>(null);
@@ -305,10 +307,12 @@ export const AdminServers: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button className="gap-2" onClick={() => setAddServerDialogOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Add Server
-          </Button>
+          {can('add_server') && (
+            <Button className="gap-2" onClick={() => setAddServerDialogOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Add Server
+            </Button>
+          )}
         </div>
       </div>
 
@@ -381,24 +385,28 @@ export const AdminServers: React.FC = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-1">
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-                        onClick={() => handleServerAction(server.id, 'remove_containers')}
-                        title="Remove All Running Containers"
-                      >
-                        <Container className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-                        onClick={() => handleServerAction(server.id, 'cleanup_disk')}
-                        title="Clean Up Disk"
-                      >
-                        <HardDrive className="w-4 h-4" />
-                      </Button>
+                      {can('cleanup_server') && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                            onClick={() => handleServerAction(server.id, 'remove_containers')}
+                            title="Remove All Running Containers"
+                          >
+                            <Container className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                            onClick={() => handleServerAction(server.id, 'cleanup_disk')}
+                            title="Clean Up Disk"
+                          >
+                            <HardDrive className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                       <Button 
                         size="sm" 
                         variant="ghost" 
@@ -417,15 +425,17 @@ export const AdminServers: React.FC = () => {
                       >
                         <Settings className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-                        onClick={() => handleServerAction(server.id, 'delete')}
-                        title="Delete Server"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {can('delete_server') && (
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                          onClick={() => handleServerAction(server.id, 'delete')}
+                          title="Delete Server"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>

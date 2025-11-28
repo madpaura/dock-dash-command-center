@@ -26,6 +26,7 @@ from services.traffic_service import TrafficService
 # Import utilities
 from utils.helpers import get_client_ip
 from utils.validators import is_valid_email
+from utils.permissions import has_permission, get_role_from_user, get_user_permissions
 import json
 from datetime import datetime
 from collections import deque
@@ -107,6 +108,8 @@ def login():
                 'user_id': result.user_id,
                 'name': result.username,
                 'role': result.role,
+                'user_type': result.user_type,
+                'permissions': result.permissions,
                 'email': email,
                 'token': result.token
             }
@@ -187,7 +190,12 @@ def get_user_info(user_id):
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    admin_username = auth_service.get_admin_username_from_token()
+    # Require delete_user permission
+    session, error_response, status_code = require_permission_auth('delete_user')
+    if error_response:
+        return error_response, status_code
+    
+    admin_username = session.get('username', 'admin')
     result = user_service.delete_user(user_id, admin_username)
     
     if result['success']:
@@ -220,8 +228,8 @@ def get_pending_users():
 @app.route('/api/admin/users/<int:user_id>/approve', methods=['POST'])
 def approve_user(user_id):
     """Approve user endpoint."""
-    # Check admin authentication
-    session, error_response, status_code = require_admin_auth()
+    # Require approve_user permission
+    session, error_response, status_code = require_permission_auth('approve_user')
     if error_response:
         return error_response, status_code
     
@@ -264,9 +272,14 @@ def get_admin_stats():
 @app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
 def update_admin_user(user_id):
     """Update admin user endpoint."""
+    # Require update_user permission
+    session, error_response, status_code = require_permission_auth('update_user')
+    if error_response:
+        return error_response, status_code
+    
     try:
         data = request.get_json()
-        admin_username = auth_service.get_admin_username_from_token()
+        admin_username = session.get('username', 'admin')
         ip_address = get_client_ip(request)
         
         success = user_service.update_admin_user(user_id, data, admin_username, ip_address)
@@ -282,9 +295,14 @@ def update_admin_user(user_id):
 @app.route('/api/admin/users', methods=['POST'])
 def create_admin_user():
     """Create admin user endpoint."""
+    # Require create_user permission
+    session, error_response, status_code = require_permission_auth('create_user')
+    if error_response:
+        return error_response, status_code
+    
     try:
         data = request.get_json()
-        admin_username = auth_service.get_admin_username_from_token()
+        admin_username = session.get('username', 'admin')
         ip_address = get_client_ip(request)
         
         result = user_service.create_admin_user(data, admin_username)
@@ -303,7 +321,8 @@ def create_admin_user():
 @app.route('/api/admin/users/<int:user_id>/reset-password', methods=['POST'])
 def admin_reset_user_password(user_id):
     """Admin resets a user's password."""
-    session, error_response, status_code = require_admin_auth()
+    # Require reset_password permission
+    session, error_response, status_code = require_permission_auth('reset_password')
     if error_response:
         return error_response, status_code
     
@@ -480,17 +499,24 @@ def get_server_stats():
 @app.route('/api/admin/servers/<server_id>/action', methods=['POST'])
 def server_action(server_id):
     """Server action endpoint."""
-    session, error_response, status_code = require_session_auth()
-    if error_response:
-        return error_response, status_code
-    
     data = request.get_json()
     action = data.get('action')
     
     if not action:
         return jsonify({'success': False, 'error': 'Action required'}), 400
     
-    admin_username = auth_service.get_admin_username_from_token()
+    # Check permission based on action type
+    if action == 'delete':
+        session, error_response, status_code = require_permission_auth('delete_server')
+    elif action in ('remove_containers', 'cleanup_disk'):
+        session, error_response, status_code = require_permission_auth('cleanup_server')
+    else:
+        session, error_response, status_code = require_admin_auth()
+    
+    if error_response:
+        return error_response, status_code
+    
+    admin_username = session.get('username', 'admin')
     ip_address = get_client_ip(request)
     
     result = server_service.perform_server_action(server_id, action, admin_username, ip_address)
@@ -504,7 +530,8 @@ def server_action(server_id):
 @app.route('/api/admin/servers', methods=['POST'])
 def add_server():
     """Add server endpoint."""
-    session, error_response, status_code = require_session_auth()
+    # Require add_server permission
+    session, error_response, status_code = require_permission_auth('add_server')
     if error_response:
         return error_response, status_code
     
@@ -512,7 +539,7 @@ def add_server():
     if not data:
         return jsonify({'success': False, 'error': 'Request data required'}), 400
     
-    admin_username = auth_service.get_admin_username_from_token()
+    admin_username = session.get('username', 'admin')
     ip_address = get_client_ip(request)
     
     result = server_service.add_server(data, admin_username, ip_address)
@@ -707,14 +734,42 @@ def clear_audit_logs():
 
 
 def require_admin_auth():
-    """Require admin authentication for protected endpoints."""
+    """Require admin authentication for protected endpoints (admin or qvp)."""
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
     session = auth_service.validate_session(token)
     if not session:
         return None, jsonify({'success': False, 'error': 'Unauthorized'}), 401
     
-    if not session.get('is_admin'):
+    # Allow both admin and qvp users to access admin console
+    user_type = session.get('user_type', 'regular')
+    if user_type not in ('admin', 'qvp') and not session.get('is_admin'):
         return None, jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    return session, None, None
+
+
+def require_permission_auth(permission: str):
+    """Require specific permission for protected endpoints."""
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    session = auth_service.validate_session(token)
+    if not session:
+        return None, jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    # Determine user type
+    user_type = session.get('user_type', 'regular')
+    # Backward compatibility: if no user_type, check is_admin
+    if not user_type or user_type == 'regular':
+        if session.get('is_admin'):
+            user_type = 'admin'
+    
+    # Check permission
+    if not has_permission(user_type, permission):
+        logger.warning(f"Permission denied: User {session.get('username')} (type: {user_type}) "
+                      f"attempted action requiring '{permission}'")
+        return None, jsonify({
+            'success': False, 
+            'error': f'Permission denied. This action requires {permission} permission.'
+        }), 403
     
     return session, None, None
 
@@ -728,7 +783,12 @@ def require_admin_auth_with_db():
     token = auth_header.split(' ')[1]
     user_info = db.validate_session(token)
     
-    if not user_info or user_info.get('role') != 'admin':
+    if not user_info:
+        return None, jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    # Allow both admin and qvp users
+    user_type = user_info.get('user_type', 'regular')
+    if user_type not in ('admin', 'qvp') and user_info.get('role') != 'admin':
         return None, jsonify({'success': False, 'error': 'Admin access required'}), 403
     
     return user_info, None, None
@@ -767,7 +827,8 @@ def require_session_auth_docker():
 def get_cleanup_summary(server_id):
     """Get cleanup summary endpoint."""
     try:
-        session, error_response, status_code = require_admin_auth()
+        # Require cleanup_server permission
+        session, error_response, status_code = require_permission_auth('cleanup_server')
         if error_response:
             return error_response, status_code
         
@@ -804,7 +865,8 @@ def get_cleanup_summary(server_id):
 def execute_cleanup(server_id):
     """Execute cleanup endpoint."""
     try:
-        session, error_response, status_code = require_admin_auth()
+        # Require cleanup_server permission
+        session, error_response, status_code = require_permission_auth('cleanup_server')
         if error_response:
             return error_response, status_code
         

@@ -18,7 +18,7 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-background overflow-x-hidden">
       <Header />
       <div className="flex">
-        {user?.role === 'admin' ? <AdminSidebar /> : <UserSidebar />}
+        {(user?.role === 'admin' || user?.role === 'qvp') ? <AdminSidebar /> : <UserSidebar />}
         <main className={`flex-1 p-6 ${collapsed ? 'ml-16' : 'ml-64'} mt-16 pb-8 transition-all duration-300 overflow-y-auto`}>
           <div className="max-w-7xl mx-auto">
             {children}

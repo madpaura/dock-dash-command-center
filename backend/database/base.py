@@ -43,6 +43,7 @@ class DatabaseManager:
             email VARCHAR(100) UNIQUE NOT NULL,
             is_admin BOOLEAN DEFAULT FALSE,
             is_approved BOOLEAN DEFAULT FALSE,
+            user_type ENUM('regular', 'qvp', 'admin') DEFAULT 'regular',
             status ENUM('active', 'inactive', 'suspended', 'system') DEFAULT 'active',
             redirect_url VARCHAR(255),
             metadata JSON,
@@ -115,6 +116,9 @@ class DatabaseManager:
             conn.commit()
             print("Database tables initialized successfully")
             
+            # Run migrations for existing databases
+            self._run_migrations(cursor, conn)
+            
             # Create default admin user if it doesn't exist
             self._create_default_admin()
             
@@ -124,6 +128,37 @@ class DatabaseManager:
         finally:
             cursor.close()
             conn.close()
+
+    def _run_migrations(self, cursor, conn):
+        """Run database migrations for schema updates."""
+        try:
+            # Check if user_type column exists
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.columns 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'users' 
+                AND column_name = 'user_type'
+            """)
+            result = cursor.fetchone()
+            
+            if result[0] == 0:
+                print("Running migration: Adding user_type column...")
+                # Add user_type column
+                cursor.execute("""
+                    ALTER TABLE users 
+                    ADD COLUMN user_type ENUM('regular', 'qvp', 'admin') DEFAULT 'regular'
+                    AFTER is_approved
+                """)
+                
+                # Migrate existing data: is_admin=true -> user_type='admin'
+                cursor.execute("""
+                    UPDATE users SET user_type = 'admin' WHERE is_admin = TRUE
+                """)
+                
+                conn.commit()
+                print("Migration completed: user_type column added and data migrated")
+        except mysql.connector.Error as e:
+            print(f"Migration warning (may be safe to ignore): {e}")
 
     def _create_default_admin(self):
         """Create default admin user if it doesn't exist."""
@@ -145,7 +180,8 @@ class DatabaseManager:
                 'password': hashlib.sha256(os.getenv('ADMIN_PASSWORD').encode()).hexdigest(),
                 'email': os.getenv('ADMIN_EMAIL'),
                 'is_admin': True,
-                'is_approved': True
+                'is_approved': True,
+                'user_type': 'admin'
             }
             user_repo.create_user(admin_data)
             print("Default admin user created successfully")
