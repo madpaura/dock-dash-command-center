@@ -76,7 +76,9 @@ class DockerContainerManager:
                 # this can be optional, based on gpu enabled or not
                 runtime="nvidia",
                 privileged=True,
-                remove=True,
+                # IMPORTANT: Do NOT set remove=True - this causes container data loss on stop
+                # Container should persist so user data in volumes is retained
+                remove=False,
             )
             logger.success(f"Container created successfully: {container.name}")
             return container, "Success"
@@ -428,11 +430,11 @@ class DockerHelper:
         workspace_path_host = os.path.join(dir_deploy, "workspace")
         kvm_path_host = "/dev/kvm"
         
-        # Ensure workspace has proper permissions
+        # Ensure workspace has proper permissions (0o777 to allow user writes)
         if os.path.exists(workspace_path_host):
             try:
                 os.chown(workspace_path_host, 1000, 1000)
-                os.chmod(workspace_path_host, 0o755)
+                os.chmod(workspace_path_host, 0o777)
                 logger.debug(f"Updated workspace permissions: {workspace_path_host}")
             except Exception as e:
                 logger.warning(f"Could not update workspace permissions: {e}")
@@ -512,7 +514,7 @@ class DockerHelper:
             if os.path.exists(workspace_path):
                 try:
                     os.chown(workspace_path, 1000, 1000)
-                    os.chmod(workspace_path, 0o755)
+                    os.chmod(workspace_path, 0o777)  # rwxrwxrwx to allow user writes
                     logger.info(f"Updated workspace permissions for existing directory: {workspace_path}")
                 except Exception as e:
                     logger.warning(f"Could not update workspace permissions: {e}")
@@ -522,24 +524,51 @@ class DockerHelper:
 
         try:
             os.makedirs(dir_deploy, exist_ok=True)
+            
+            # IMPORTANT: Preserve existing workspace directory to prevent data loss
+            workspace_path = os.path.join(dir_deploy, "workspace")
+            workspace_existed = os.path.exists(workspace_path)
+            if workspace_existed:
+                logger.info(f"Preserving existing workspace directory: {workspace_path}")
 
             for item in os.listdir(dir_template):
                 src_path = os.path.join(dir_template, item)
                 dst_path = os.path.join(dir_deploy, item)
+                
+                # Skip workspace directory if it already exists to preserve user data
+                if item == "workspace" and workspace_existed:
+                    logger.info(f"Skipping workspace copy to preserve existing user data")
+                    continue
 
                 if os.path.isfile(src_path):
-                    shutil.copy2(src_path, dst_path)
+                    # Only copy file if it doesn't exist (don't overwrite)
+                    if not os.path.exists(dst_path):
+                        shutil.copy2(src_path, dst_path)
                 elif os.path.isdir(src_path):
-                    shutil.copytree(src_path, dst_path)
+                    # Only copy directory if it doesn't exist (don't overwrite)
+                    if not os.path.exists(dst_path):
+                        shutil.copytree(src_path, dst_path)
+                    else:
+                        logger.info(f"Skipping existing directory: {dst_path}")
 
             # Ensure workspace directory exists and has proper permissions
-            workspace_path = os.path.join(dir_deploy, "workspace")
             os.makedirs(workspace_path, exist_ok=True)
             
             # Set proper ownership and permissions for workspace
+            # Use 1000:1000 (abc user inside container) with 0o777 to allow writes
             try:
-                os.chown(workspace_path, 1000, 1000)
-                os.chmod(workspace_path, 0o755)
+                # Set ownership recursively for workspace
+                for root, dirs, files in os.walk(workspace_path):
+                    os.chown(root, 1000, 1000)
+                    os.chmod(root, 0o777)  # rwxrwxrwx for directories
+                    for d in dirs:
+                        dir_path = os.path.join(root, d)
+                        os.chown(dir_path, 1000, 1000)
+                        os.chmod(dir_path, 0o777)
+                    for f in files:
+                        file_path = os.path.join(root, f)
+                        os.chown(file_path, 1000, 1000)
+                        os.chmod(file_path, 0o666)  # rw-rw-rw- for files
                 logger.info(f"Set workspace permissions during setup: {workspace_path}")
             except Exception as e:
                 logger.warning(f"Could not set workspace permissions during setup: {e}")

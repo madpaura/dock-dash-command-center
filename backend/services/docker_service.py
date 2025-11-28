@@ -22,16 +22,22 @@ class DockerService:
             agents = read_agents_file()
             
             if server_id:
+                # Convert server_id to IP if it's in format 'server-192-168-68-108'
+                agent_ip = server_id
+                if server_id.startswith('server-'):
+                    # Extract IP from server ID format: server-192-168-68-108 -> 192.168.68.108
+                    agent_ip = server_id.replace('server-', '').replace('-', '.')
+                
                 # Query specific server
-                if server_id not in agents:
+                if agent_ip not in agents:
                     return {
                         'servers': [],
                         'total_servers': 0,
-                        'error': 'Server not found',
+                        'error': f'Server not found: {agent_ip}',
                         'timestamp': time.time()
                     }
                 
-                result = self.agent_service.query_agent_docker_images(server_id, self.agent_port)
+                result = self.agent_service.query_agent_docker_images(agent_ip, self.agent_port)
                 if result:
                     return {
                         'servers': [result],
@@ -67,11 +73,17 @@ class DockerService:
     def get_docker_image_details(self, server_id: str, image_id: str) -> Dict[str, Any]:
         try:
             agents = read_agents_file()
-            if server_id not in agents:
-                return {'error': 'Server not found'}
+            
+            # Convert server_id to IP if it's in format 'server-192-168-68-108'
+            agent_ip = server_id
+            if server_id.startswith('server-'):
+                agent_ip = server_id.replace('server-', '').replace('-', '.')
+            
+            if agent_ip not in agents:
+                return {'error': f'Server not found: {agent_ip}'}
             
             # Query image details from specific server
-            result = self.agent_service.query_agent_docker_image_details(server_id, image_id, self.agent_port)
+            result = self.agent_service.query_agent_docker_image_details(agent_ip, image_id, self.agent_port)
             
             if result:
                 return result
