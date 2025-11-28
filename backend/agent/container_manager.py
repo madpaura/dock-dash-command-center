@@ -73,7 +73,10 @@ class DockerContainerManager:
                 mem_limit=memory_limit,
                 memswap_limit=memory_swap,
                 hostname=host_name,
+                # this can be optional, based on gpu enabled or not
+                runtime="nvidia",
                 privileged=True,
+                remove=True,
             )
             logger.success(f"Container created successfully: {container.name}")
             return container, "Success"

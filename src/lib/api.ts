@@ -2,7 +2,7 @@
  * API service for communicating with the backend
  */
 
-const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8500/api`;
+const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:/api`;
 
 // Container Management Interfaces
 export interface ContainerInfo {

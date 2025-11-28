@@ -975,20 +975,20 @@ def get_user_services():
                 'status': 'stopped'
             }
         }
-        
+        mgmt_server = os.getenv('MGMT_SERVER_IP')
         # If user has nginx routes configured and container is running
         if route_info.get('has_routes') and real_container_status == 'running':
             if route_info.get('vscode_url'):
                 services['vscode'] = {
                     'available': True,
-                    'url': f"http://localhost{route_info['vscode_url']}",
+                    'url': f"http://{mgmt_server}{route_info['vscode_url']}",
                     'status': 'running'
                 }
             
             if route_info.get('jupyter_url'):
                 services['jupyter'] = {
                     'available': True,
-                    'url': f"http://localhost{route_info['jupyter_url']}",
+                    'url': f"http://{mgmt_server}{route_info['jupyter_url']}",
                     'status': 'running'
                 }
             
@@ -996,13 +996,13 @@ def get_user_services():
             # These can be extended when those services are implemented
             services['intellij'] = {
                 'available': True,
-                'url': f"http://localhost/user/{username}/intellij/",
+                'url': f"http://{mgmt_server}/user/{username}/intellij/",
                 'status': 'running'
             }
             
             services['terminal'] = {
                 'available': False,
-                'url': f"http://localhost/user/{username}/terminal/",
+                'url': f"http://{mgmt_server}/user/{username}/terminal/",
                 'status': 'running' 
             }
         
