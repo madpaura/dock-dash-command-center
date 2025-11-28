@@ -40,13 +40,23 @@ import {
   Hash
 } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
-import { dockerApi, DockerImage as BackendDockerImage, DockerImagesResponse, ServerListItem } from '@/lib/docker-api';
+import { dockerApi, DockerImage as BackendDockerImage, DockerImagesResponse, ServerListItem, DockerImageDetails } from '@/lib/docker-api';
+
+// Extended image type with server info
+interface ImageWithServer extends BackendDockerImage {
+  server_id: string;
+  server_name: string;
+}
 
 export const AdminImages: React.FC = () => {
   const { user } = useAuth();
   const { can } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
-  const [images, setImages] = useState<BackendDockerImage[]>([]);
+  const [images, setImages] = useState<ImageWithServer[]>([]);
+  const [selectedImage, setSelectedImage] = useState<ImageWithServer | null>(null);
+  const [imageDetails, setImageDetails] = useState<DockerImageDetails | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [servers, setServers] = useState<ServerListItem[]>([]);
   const [selectedServer, setSelectedServer] = useState<string>('all');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -111,14 +121,24 @@ export const AdminImages: React.FC = () => {
           return;
         }
         
-        // Flatten images from all servers
-        const allImages: BackendDockerImage[] = [];
-        response.data.servers.forEach(server => {
-          if (server.error) {
+        // Flatten images from all servers, keeping server info
+        const allImages: ImageWithServer[] = [];
+        response.data.servers.forEach(serverData => {
+          if (serverData.error) {
             // Individual server has an error, but continue with other servers
-            console.warn(`Server ${server.server_id} error:`, server.error);
-          } else if (server.images) {
-            allImages.push(...server.images);
+            console.warn(`Server ${serverData.server_id} error:`, serverData.error);
+          } else if (serverData.images) {
+            // Find server name from servers list
+            const serverInfo = servers.find(s => s.id === serverData.server_id);
+            const serverName = serverInfo?.name || serverData.server_id;
+            
+            // Add server info to each image
+            const imagesWithServer = serverData.images.map(img => ({
+              ...img,
+              server_id: serverData.server_id,
+              server_name: serverName
+            }));
+            allImages.push(...imagesWithServer);
           }
         });
         setImages(allImages);
@@ -164,6 +184,28 @@ export const AdminImages: React.FC = () => {
   const handlePullImage = (repository: string, tag: string) => {
     console.log('Pulling image:', `${repository}:${tag}`);
     // Implement pull logic
+  };
+
+  const handleViewDetails = async (image: ImageWithServer) => {
+    if (!user?.token) return;
+    
+    setSelectedImage(image);
+    setDetailsDialogOpen(true);
+    setLoadingDetails(true);
+    setImageDetails(null);
+    
+    try {
+      const response = await dockerApi.getDockerImageDetails(image.server_id, image.id, user.token);
+      if (response.success && response.data) {
+        setImageDetails(response.data);
+      } else {
+        setError(response.error || 'Failed to load image details');
+      }
+    } catch (err) {
+      setError('Failed to load image details');
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -273,6 +315,7 @@ export const AdminImages: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8"></TableHead>
+                <TableHead>Server</TableHead>
                 <TableHead>Repository</TableHead>
                 <TableHead>Tag</TableHead>
                 <TableHead>Image ID</TableHead>
@@ -297,6 +340,9 @@ export const AdminImages: React.FC = () => {
                         )}
                       </Button>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">{image.server_name}</Badge>
+                    </TableCell>
                     <TableCell className="font-medium">{image.repository}</TableCell>
                     <TableCell>
                       <Badge className="bg-gray-800 text-white border-gray-600">{image.tag}</Badge>
@@ -312,7 +358,7 @@ export const AdminImages: React.FC = () => {
                           variant="outline" 
                           size="sm"
                           className="border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white"
-                          onClick={() => console.log('View details for:', image.id)}
+                          onClick={() => handleViewDetails(image)}
                         >
                           <Layers className="h-4 w-4 mr-1" />
                           Details
@@ -332,7 +378,7 @@ export const AdminImages: React.FC = () => {
               ))}
               {filteredImages.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     {loading ? 'Loading images...' : error ? 'No images to display due to error' : 'No Docker images found'}
                   </TableCell>
                 </TableRow>
@@ -341,6 +387,127 @@ export const AdminImages: React.FC = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Image Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="w-5 h-5" />
+              Image Details
+            </DialogTitle>
+          </DialogHeader>
+          
+          {loadingDetails ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Loading details...</span>
+            </div>
+          ) : selectedImage && imageDetails ? (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-muted-foreground">Repository</label>
+                  <p className="font-medium">{selectedImage.repository}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Tag</label>
+                  <p><Badge>{selectedImage.tag}</Badge></p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Image ID</label>
+                  <p className="font-mono text-sm">{selectedImage.id}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Server</label>
+                  <p><Badge variant="outline">{selectedImage.server_name}</Badge></p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Size</label>
+                  <p>{formatBytes(selectedImage.size || 0)}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Created</label>
+                  <p>{formatDate(selectedImage.created)}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Architecture</label>
+                  <p>{imageDetails.architecture || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">OS</label>
+                  <p>{imageDetails.os || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Layers */}
+              {imageDetails.layers && imageDetails.layers.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                    <Layers className="w-4 h-4" />
+                    Layers ({imageDetails.layers.length})
+                  </h3>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">#</TableHead>
+                          <TableHead>Layer ID</TableHead>
+                          <TableHead>Size</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {imageDetails.layers.map((layer, idx) => (
+                          <TableRow key={layer.id || idx}>
+                            <TableCell>{idx + 1}</TableCell>
+                            <TableCell className="font-mono text-sm">{layer.id?.substring(0, 20) || 'N/A'}...</TableCell>
+                            <TableCell>{layer.size}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* History */}
+              {imageDetails.history && imageDetails.history.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    History ({imageDetails.history.length})
+                  </h3>
+                  <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Command</TableHead>
+                          <TableHead className="w-24">Size</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {imageDetails.history.map((entry, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-mono text-xs max-w-md truncate" title={entry.created_by}>
+                              {entry.created_by?.substring(0, 100) || 'N/A'}
+                            </TableCell>
+                            <TableCell>{entry.size > 0 ? formatBytes(entry.size) : '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No details available
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
