@@ -5,6 +5,7 @@ import json
 import hashlib
 import logging
 import tempfile
+import subprocess
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import paramiko
@@ -591,10 +592,15 @@ class UploadService:
             
             # Perform upload
             try:
+                logger.info(f"Starting upload to {server['name']} ({server['protocol']}): {dest_path}")
                 if server['protocol'] == 'local':
                     result = self._upload_local(dest_path, file_data)
-                else:
+                elif server['protocol'] == 'scp':
+                    result = self._upload_scp(server, dest_path, file_data)
+                elif server['protocol'] == 'sftp':
                     result = self._upload_sftp(server, dest_path, file_data)
+                else:
+                    result = {'success': False, 'error': f"Unsupported protocol: {server['protocol']}"}
                 
                 if result['success']:
                     # Calculate checksum
@@ -649,26 +655,108 @@ class UploadService:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
+    def _upload_scp(self, server: Dict[str, Any], dest_path: str,
+                   file_data: bytes) -> Dict[str, Any]:
+        """Upload file via native SCP command (much faster than SFTP)."""
+        tmp_file = None
+        try:
+            # Write data to temp file in /home to avoid tmpfs space issues
+            tmp_dir = os.path.expanduser('~/.cache/upload_tmp')
+            os.makedirs(tmp_dir, exist_ok=True)
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, dir=tmp_dir)
+            tmp_file.write(file_data)
+            tmp_file.close()
+            
+            host = server['ip_address']
+            port = server.get('port', 22)
+            username = server.get('username')
+            password = server.get('password')
+            
+            # Create remote directory first via SSH
+            dir_path = os.path.dirname(dest_path)
+            mkdir_cmd = ['ssh', '-o', 'StrictHostKeyChecking=no', '-p', str(port)]
+            
+            if password:
+                mkdir_cmd = ['sshpass', '-p', password] + mkdir_cmd
+            
+            mkdir_cmd.extend([f'{username}@{host}', f'mkdir -p {dir_path}'])
+            
+            logger.info(f"Creating remote directory: {dir_path}")
+            result = subprocess.run(mkdir_cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                logger.warning(f"mkdir warning: {result.stderr}")
+            
+            # Build SCP command
+            scp_cmd = ['scp', '-o', 'StrictHostKeyChecking=no', '-P', str(port)]
+            
+            if password:
+                # Use sshpass for password auth
+                scp_cmd = ['sshpass', '-p', password] + scp_cmd
+            
+            scp_cmd.extend([tmp_file.name, f'{username}@{host}:{dest_path}'])
+            
+            logger.info(f"Running native SCP upload: {len(file_data) / (1024*1024):.1f} MB to {host}:{dest_path}")
+            
+            result = subprocess.run(scp_cmd, capture_output=True, text=True, timeout=600)
+            
+            if result.returncode == 0:
+                logger.info(f"SCP upload completed successfully")
+                return {'success': True}
+            else:
+                error = result.stderr or 'SCP command failed'
+                logger.error(f"SCP error: {error}")
+                return {'success': False, 'error': error}
+                
+        except subprocess.TimeoutExpired:
+            return {'success': False, 'error': 'SCP upload timed out'}
+        except FileNotFoundError as e:
+            if 'sshpass' in str(e):
+                return {'success': False, 'error': 'sshpass not installed. Install with: apt install sshpass'}
+            return {'success': False, 'error': str(e)}
+        except Exception as e:
+            logger.error(f"SCP upload error: {e}")
+            return {'success': False, 'error': str(e)}
+        finally:
+            if tmp_file and os.path.exists(tmp_file.name):
+                os.unlink(tmp_file.name)
+
     def _upload_sftp(self, server: Dict[str, Any], dest_path: str,
                     file_data: bytes) -> Dict[str, Any]:
         """Upload file via SFTP."""
         ssh = None
         sftp = None
         try:
+            logger.info(f"Connecting to {server['ip_address']}:{server.get('port', 22)}")
             ssh = self._get_ssh_connection(server)
             sftp = ssh.open_sftp()
+            logger.info(f"SFTP connection established")
             
             # Create directory if needed
             dir_path = os.path.dirname(dest_path)
+            logger.info(f"Creating directory: {dir_path}")
             self._mkdir_p(sftp, dir_path)
             
-            # Upload file
-            with sftp.open(dest_path, 'wb') as f:
-                f.write(file_data)
+            # Upload file with progress logging
+            total_size = len(file_data)
+            logger.info(f"Uploading {total_size / (1024*1024):.1f} MB to {dest_path}")
             
+            # Write in chunks for better performance and progress tracking
+            chunk_size = 1024 * 1024  # 1MB chunks
+            with sftp.open(dest_path, 'wb') as f:
+                written = 0
+                for i in range(0, total_size, chunk_size):
+                    chunk = file_data[i:i + chunk_size]
+                    f.write(chunk)
+                    written += len(chunk)
+                    if written % (10 * 1024 * 1024) == 0 or written == total_size:  # Log every 10MB
+                        progress = (written / total_size) * 100
+                        logger.info(f"Upload progress: {progress:.1f}% ({written / (1024*1024):.1f} MB / {total_size / (1024*1024):.1f} MB)")
+            
+            logger.info(f"Upload completed successfully")
             return {'success': True}
             
         except Exception as e:
+            logger.error(f"SFTP upload error: {e}")
             return {'success': False, 'error': str(e)}
         finally:
             if sftp:
