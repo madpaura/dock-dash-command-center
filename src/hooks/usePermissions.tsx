@@ -17,6 +17,13 @@ export interface UserPermissions {
   create_user: boolean;
   update_user: boolean;
   reset_password: boolean;
+  // Docker build & registry permissions
+  view_registries: boolean;
+  manage_registries: boolean;
+  view_projects: boolean;
+  manage_projects: boolean;
+  build_images: boolean;
+  push_images: boolean;
 }
 
 // Default permissions for each role
@@ -38,6 +45,13 @@ const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     create_user: true,
     update_user: true,
     reset_password: true,
+    // Docker build & registry permissions
+    view_registries: true,
+    manage_registries: true,
+    view_projects: true,
+    manage_projects: true,
+    build_images: true,
+    push_images: true,
   },
   qvp: {
     view_dashboard: true,
@@ -56,6 +70,13 @@ const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     create_user: false,
     update_user: false,
     reset_password: false,
+    // Docker build & registry permissions - QVP has FULL access
+    view_registries: true,
+    manage_registries: true,
+    view_projects: true,
+    manage_projects: true,
+    build_images: true,
+    push_images: true,
   },
   user: {
     view_dashboard: false,
@@ -74,6 +95,13 @@ const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     create_user: false,
     update_user: false,
     reset_password: false,
+    // Docker build & registry permissions
+    view_registries: false,
+    manage_registries: false,
+    view_projects: false,
+    manage_projects: false,
+    build_images: false,
+    push_images: false,
   },
 };
 

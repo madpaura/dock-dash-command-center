@@ -28,6 +28,13 @@ PERMISSIONS = {
         'create_user': True,
         'update_user': True,
         'reset_password': True,
+        # Docker build & registry permissions
+        'view_registries': True,
+        'manage_registries': True,
+        'view_projects': True,
+        'manage_projects': True,
+        'build_images': True,
+        'push_images': True,
     },
     'qvp': {
         'view_dashboard': True,
@@ -46,6 +53,13 @@ PERMISSIONS = {
         'create_user': False,       # No user creation
         'update_user': False,       # No user updates
         'reset_password': False,    # No password reset
+        # Docker build & registry permissions - QVP has FULL access
+        'view_registries': True,
+        'manage_registries': True,
+        'view_projects': True,
+        'manage_projects': True,
+        'build_images': True,
+        'push_images': True,
     },
     'regular': {
         'view_dashboard': False,
@@ -64,6 +78,13 @@ PERMISSIONS = {
         'create_user': False,
         'update_user': False,
         'reset_password': False,
+        # Docker build & registry permissions
+        'view_registries': False,
+        'manage_registries': False,
+        'view_projects': False,
+        'manage_projects': False,
+        'build_images': False,
+        'push_images': False,
     }
 }
 
