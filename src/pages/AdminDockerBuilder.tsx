@@ -104,6 +104,12 @@ export const AdminDockerBuilder: React.FC = () => {
   const [editorBuildLogs, setEditorBuildLogs] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
   
+  // Build logs dialog state
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [viewingBuildLogs, setViewingBuildLogs] = useState('');
+  const [viewingBuildInfo, setViewingBuildInfo] = useState<Build | null>(null);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  
   // Common state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -417,6 +423,43 @@ export const AdminDockerBuilder: React.FC = () => {
     setDetailDialogOpen(true);
   };
 
+  const handleViewBuildLogs = async (build: Build) => {
+    if (!user?.token) return;
+    
+    setViewingBuildInfo(build);
+    setLogsDialogOpen(true);
+    setLoadingLogs(true);
+    setViewingBuildLogs('');
+    
+    try {
+      const response = await buildApi.getBuildLogs(user.token, build.id);
+      if (response.success && response.data) {
+        setViewingBuildLogs(response.data.logs || 'No logs available');
+      } else {
+        setViewingBuildLogs('Failed to load logs');
+      }
+    } catch (err) {
+      setViewingBuildLogs('Failed to load logs');
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const handleViewLastBuildLogs = async (project: BuildProject) => {
+    if (!user?.token) return;
+    
+    // First get the latest build for this project
+    try {
+      const response = await buildApi.getProjectBuilds(user.token, project.id, 1);
+      if (response.success && response.data && response.data.builds.length > 0) {
+        const lastBuild = response.data.builds[0];
+        handleViewBuildLogs(lastBuild);
+      }
+    } catch (err) {
+      console.error('Failed to fetch last build');
+    }
+  };
+
   // ==================== Dockerfile Editor Handlers ====================
 
   const handleOpenDockerfileEditor = async (project: BuildProject) => {
@@ -723,7 +766,19 @@ CMD ["bash"]
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {getStatusBadge(project.last_build_status)}
+                          {project.last_build_status ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto p-0 hover:bg-transparent"
+                              onClick={() => handleViewLastBuildLogs(project)}
+                              title="Click to view build logs"
+                            >
+                              {getStatusBadge(project.last_build_status)}
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">No builds</span>
+                          )}
                           {project.last_tag && (
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Tag className="w-3 h-3" />
@@ -1158,6 +1213,7 @@ CMD ["bash"]
                   <TableHead>Started</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Triggered By</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1168,11 +1224,21 @@ CMD ["bash"]
                     <TableCell className="text-sm">{new Date(build.started_at).toLocaleString()}</TableCell>
                     <TableCell>{build.duration_seconds ? `${build.duration_seconds}s` : '-'}</TableCell>
                     <TableCell>{build.triggered_by_name || '-'}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewBuildLogs(build)}
+                        title="View Logs"
+                      >
+                        <Terminal className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {selectedBuilds.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No builds yet</TableCell>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">No builds yet</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -1394,6 +1460,53 @@ CMD ["bash"]
           <DialogFooter className="flex-shrink-0 mt-4">
             <Button variant="outline" onClick={() => setDockerfileEditorOpen(false)}>
               <X className="w-4 h-4 mr-2" />
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Build Logs Dialog */}
+      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Terminal className="w-5 h-5" />
+              Build Logs
+              {viewingBuildInfo && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  - {viewingBuildInfo.tag} ({viewingBuildInfo.status})
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {viewingBuildInfo && (
+            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-shrink-0">
+              <span>Started: {new Date(viewingBuildInfo.started_at).toLocaleString()}</span>
+              {viewingBuildInfo.duration_seconds && (
+                <span>Duration: {viewingBuildInfo.duration_seconds}s</span>
+              )}
+              {getStatusBadge(viewingBuildInfo.status)}
+            </div>
+          )}
+          
+          <div className="flex-1 min-h-0 mt-4">
+            {loadingLogs ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="h-full border rounded-lg overflow-hidden bg-[#0d1117]">
+                <pre className="w-full h-full p-4 text-sm font-mono text-[#c9d1d9] overflow-auto whitespace-pre-wrap">
+                  {viewingBuildLogs}
+                </pre>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="flex-shrink-0 mt-4">
+            <Button variant="outline" onClick={() => setLogsDialogOpen(false)}>
               Close
             </Button>
           </DialogFooter>
