@@ -668,6 +668,24 @@ def get_docker_image_details(server_id, image_id):
         return jsonify(result)
 
 
+@app.route('/api/admin/docker-images/<server_id>/<image_id>', methods=['DELETE'])
+def delete_docker_image(server_id, image_id):
+    """Delete a Docker image from a server."""
+    session, error_response, status_code = require_session_auth_docker()
+    if error_response:
+        return error_response, status_code
+    
+    data = request.get_json() or {}
+    force = data.get('force', False)
+    
+    result = docker_service.delete_docker_image(server_id, image_id, force)
+    
+    if result.get('success'):
+        return jsonify(result)
+    else:
+        return jsonify(result), 400
+
+
 @app.route('/api/admin/servers/list', methods=['GET'])
 def get_servers_list():
     """Get servers list endpoint."""

@@ -2,7 +2,7 @@
  * Docker images management API
  */
 
-const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:/api`;
+const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}/api`;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -148,6 +148,24 @@ export const dockerApi = {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
+    });
+  },
+
+  /**
+   * Delete a Docker image from a server
+   */
+  deleteDockerImage(
+    serverId: string,
+    imageId: string,
+    token: string,
+    force: boolean = false
+  ): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/docker-images/${serverId}/${imageId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ force }),
     });
   },
 };

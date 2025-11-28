@@ -125,6 +125,30 @@ class AgentService:
             logger.error(f"Error querying Docker image details from agent {agent_ip}:{self.agent_port}: {e}")
             return None
 
+    def delete_docker_image(self, agent_ip: str, image_id: str, port: int = None, force: bool = False) -> Dict[str, Any]:
+        """Delete a Docker image from an agent."""
+        try:
+            logger.info(f"Deleting Docker image {image_id} from: {agent_ip}:{self.agent_port}")
+            
+            url = f"http://{agent_ip}:{self.agent_port}/delete_docker_image/{image_id}"
+            response = requests.delete(url, json={'force': force}, timeout=self.timeout)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                error_msg = response.json().get('error', f'HTTP {response.status_code}')
+                logger.warning(f"Failed to delete image from agent {agent_ip}: {error_msg}")
+                return {'success': False, 'error': error_msg}
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout deleting Docker image from agent {agent_ip}:{self.agent_port}")
+            return {'success': False, 'error': 'Request timeout'}
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Connection failed to agent {agent_ip}:{self.agent_port}")
+            return {'success': False, 'error': 'Connection failed'}
+        except Exception as e:
+            logger.error(f"Error deleting Docker image from agent {agent_ip}:{self.agent_port}: {e}")
+            return {'success': False, 'error': str(e)}
+
     def query_multiple_agents_docker_images(self, server_list: List[str], port: int = None, max_workers: int = 10, timeout_per_agent: int = 10) -> List[Dict[str, Any]]:
         if not server_list:
             logger.warning("No servers provided to query for Docker images")
