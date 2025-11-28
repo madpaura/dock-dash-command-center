@@ -1,13 +1,16 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi } from '../lib/api';
+import { UserPermissions } from './usePermissions';
 
 interface User {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'qvp' | 'user';
+  user_type?: 'admin' | 'qvp' | 'regular';
   token: string;
+  permissions?: UserPermissions;
 }
 
 interface AuthContextType {
@@ -64,12 +67,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.success && response.data) {
         console.log('useAuth: Raw response.data:', response.data);
         
-        const userData = {
+        const userData: User = {
           id: response.data.user_id,
           name: response.data.name,
           email: response.data.email,
-          role: response.data.role as 'admin' | 'user',
-          token: response.data.token
+          role: response.data.role as 'admin' | 'qvp' | 'user',
+          user_type: response.data.user_type,
+          token: response.data.token,
+          permissions: response.data.permissions
         };
 
         console.log('useAuth: Setting user data:', userData);

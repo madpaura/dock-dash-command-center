@@ -16,12 +16,29 @@ import AdminTraffic from './pages/AdminTraffic';
 import { UserDashboard } from './pages/UserDashboard';
 import { UserContainers } from './pages/UserContainers';
 import { UserFileBrowser } from './pages/UserFileBrowser';
+import { usePermissions } from './hooks/usePermissions';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'admin' | 'user' }> = ({ 
+// Helper to check if user can access admin routes (admin or qvp)
+const canAccessAdminRoutes = (role?: string): boolean => {
+  return role === 'admin' || role === 'qvp';
+};
+
+// Helper to get redirect path based on role
+const getRedirectPath = (role?: string): string => {
+  return canAccessAdminRoutes(role) ? '/admin' : '/user';
+};
+
+const ProtectedRoute: React.FC<{ 
+  children: React.ReactNode; 
+  requiredRole?: 'admin' | 'user';
+  requiresPermission?: string;
+}> = ({ 
   children, 
-  requiredRole 
+  requiredRole,
+  requiresPermission
 }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const { can } = usePermissions();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -31,8 +48,18 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'admi
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to={user?.role === 'admin' ? '/admin' : '/user'} replace />;
+  // For admin routes, allow both admin and qvp users
+  if (requiredRole === 'admin') {
+    if (!canAccessAdminRoutes(user?.role)) {
+      return <Navigate to="/user" replace />;
+    }
+    
+    // Check specific permission if required
+    if (requiresPermission && !can(requiresPermission as any)) {
+      return <Navigate to="/admin" replace />;
+    }
+  } else if (requiredRole === 'user' && user?.role !== 'user') {
+    return <Navigate to={getRedirectPath(user?.role)} replace />;
   }
 
   return <Layout>{children}</Layout>;
@@ -50,9 +77,9 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
-      <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to={user?.role === 'admin' ? '/admin' : '/user'} replace />} />
-      <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to={user?.role === 'admin' ? '/admin' : '/user'} replace />} />
-      <Route path="/" element={<Navigate to={isAuthenticated ? (user?.role === 'admin' ? '/admin' : '/user') : '/login'} replace />} />
+      <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to={getRedirectPath(user?.role)} replace />} />
+      <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to={getRedirectPath(user?.role)} replace />} />
+      <Route path="/" element={<Navigate to={isAuthenticated ? getRedirectPath(user?.role) : '/login'} replace />} />
       
       {/* Admin Routes */}
       <Route path="/admin" element={
@@ -68,7 +95,7 @@ const AppRoutes: React.FC = () => {
       } />
       
       <Route path="/admin/users" element={
-        <ProtectedRoute requiredRole="admin">
+        <ProtectedRoute requiredRole="admin" requiresPermission="manage_users">
           <AdminUsers />
         </ProtectedRoute>
       } />
@@ -117,7 +144,7 @@ const AppRoutes: React.FC = () => {
       } />
       
       {/* Catch all route */}
-      <Route path="*" element={<Navigate to={user?.role === 'admin' ? '/admin' : '/user'} replace />} />
+      <Route path="*" element={<Navigate to={getRedirectPath(user?.role)} replace />} />
     </Routes>
   );
 };

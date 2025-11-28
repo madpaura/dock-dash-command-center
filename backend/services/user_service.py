@@ -440,8 +440,19 @@ class UserService:
                 # Determine if user came through registration or was created by admin
                 is_new_registration = not metadata.get('created_by_admin', False)
                 
+                # Check if user needs container (QVP and Admin users don't)
+                user_type = user.get('user_type')
+                no_container_needed = metadata.get('no_container', False) or user_type in ('admin', 'qvp')
+                
                 # Set container, resources, and server based on user status
-                if is_new_registration and not user.get('is_approved'):
+                if no_container_needed:
+                    # Admin/QVP users - no container assignment
+                    container_name = 'N/A'
+                    container_status = 'N/A'
+                    resources = {'cpu': 'N/A', 'ram': 'N/A', 'gpu': 'N/A'}
+                    server_assignment = 'N/A'
+                    server_location = 'N/A'
+                elif is_new_registration and not user.get('is_approved'):
                     # New registration - show NA until approved
                     container_name = 'NA'
                     container_status = 'pending'
@@ -492,9 +503,12 @@ class UserService:
                     else:
                         server_location = server_locations.get(server_assignment, 'unknown')
                     
-                # Determine role
-                if user.get('is_admin'):
+                # Determine role based on user_type (with backward compatibility)
+                user_type = user.get('user_type')
+                if user_type == 'admin' or (not user_type and user.get('is_admin')):
                     role = 'Admin'
+                elif user_type == 'qvp':
+                    role = 'QVP'
                 elif user.get('is_approved'):
                     role = 'Developer'
                 else:
@@ -553,7 +567,16 @@ class UserService:
             if 'email' in update_data:
                 update_fields['email'] = update_data['email']
             if 'role' in update_data:
-                update_fields['is_admin'] = update_data['role'].lower() == 'admin'
+                role_lower = update_data['role'].lower()
+                update_fields['is_admin'] = role_lower == 'admin'
+                # Set user_type based on role
+                if role_lower == 'admin':
+                    update_fields['user_type'] = 'admin'
+                elif role_lower == 'qvp':
+                    update_fields['user_type'] = 'qvp'
+                    update_fields['is_admin'] = False  # QVP is not a full admin
+                else:
+                    update_fields['user_type'] = 'regular'
 
             # Get user info before update
             user = self.db.get_user_by_id(user_id)
@@ -605,23 +628,45 @@ class UserService:
             # Hash password
             password_hash = hash_password(password)
             
+            # Determine user_type based on role
+            role_lower = role.lower()
+            if role_lower == 'admin':
+                user_type = 'admin'
+                is_admin = True
+            elif role_lower == 'qvp':
+                user_type = 'qvp'
+                is_admin = False  # QVP is not a full admin
+            else:
+                user_type = 'regular'
+                is_admin = False
+            
+            # Admin and QVP users don't need container assignment
+            needs_container = user_type == 'regular'
+            
+            # Prepare metadata - only include server/resources for regular users
+            metadata = {
+                'created_by_admin': True,
+                'created_at': datetime.now().isoformat()
+            }
+            if needs_container:
+                metadata['server_assignment'] = server_assignment
+                metadata['resources'] = resources
+            else:
+                metadata['no_container'] = True  # Flag to indicate no container needed
+            
             # Prepare user data
             create_data = {
                 'username': name,
                 'password': password_hash,
                 'email': email,
-                'is_admin': role.lower() == 'admin',
-                'is_approved': status.lower() == 'running',
-                'metadata': json.dumps({
-                    'server_assignment': server_assignment,
-                    'resources': resources,
-                    'created_by_admin': True,
-                    'created_at': datetime.now().isoformat()
-                })
+                'is_admin': is_admin,
+                'is_approved': True if user_type in ('admin', 'qvp') else status.lower() == 'running',
+                'user_type': user_type,
+                'metadata': json.dumps(metadata)
             }
             
-            # Set redirect URL if approved
-            if create_data['is_approved']:
+            # Set redirect URL only for regular users with container assignment
+            if needs_container and create_data['is_approved'] and server_assignment:
                 create_data['redirect_url'] = f"http://{server_assignment}:{self.agent_port}"
             
             # Create user
