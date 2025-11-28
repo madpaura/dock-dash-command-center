@@ -37,7 +37,9 @@ import {
   Layers,
   HardDrive,
   Calendar,
-  Hash
+  Hash,
+  Copy,
+  Check
 } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { dockerApi, DockerImage as BackendDockerImage, DockerImagesResponse, ServerListItem, DockerImageDetails } from '@/lib/docker-api';
@@ -63,6 +65,56 @@ export const AdminImages: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  // Helper to get short ID (first 12 chars after sha256:)
+  const getShortId = (id: string) => {
+    if (id.startsWith('sha256:')) {
+      return id.substring(7, 19); // Get 12 chars after 'sha256:'
+    }
+    return id.substring(0, 12);
+  };
+
+  // Copy to clipboard helper (with fallback for HTTP)
+  const copyToClipboard = (text: string, label: string) => {
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopiedText(label);
+          setTimeout(() => setCopiedText(null), 2000);
+        }).catch(() => {
+          // Fallback if clipboard API fails
+          fallbackCopy(text, label);
+        });
+      } else {
+        // Fallback for HTTP or older browsers
+        fallbackCopy(text, label);
+      }
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  // Fallback copy method using textarea
+  const fallbackCopy = (text: string, label: string) => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCopiedText(label);
+      setTimeout(() => setCopiedText(null), 2000);
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+    }
+    document.body.removeChild(textArea);
+  };
 
   // Load servers list on component mount
   useEffect(() => {
@@ -176,9 +228,56 @@ export const AdminImages: React.FC = () => {
     setExpandedRows(newExpanded);
   };
 
-  const handleDeleteImage = (imageId: string) => {
-    console.log('Deleting image:', imageId);
-    // Implement delete logic
+  const handleDeleteImage = async (image: ImageWithServer) => {
+    if (!user?.token) return;
+    
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete image ${image.repository}:${image.tag}?\n\nImage ID: ${getShortId(image.id)}`
+    );
+    
+    if (!confirmDelete) return;
+    
+    try {
+      setLoading(true);
+      const response = await dockerApi.deleteDockerImage(
+        image.server_id,
+        image.id,
+        user.token,
+        false // force
+      );
+      
+      if (response.success) {
+        // Remove the deleted image from the list
+        setImages(prev => prev.filter(img => !(img.id === image.id && img.server_id === image.server_id)));
+        setError(null);
+      } else {
+        // If failed, try with force option
+        const forceDelete = window.confirm(
+          `Failed to delete image: ${response.error}\n\nDo you want to force delete?`
+        );
+        
+        if (forceDelete) {
+          const forceResponse = await dockerApi.deleteDockerImage(
+            image.server_id,
+            image.id,
+            user.token,
+            true // force
+          );
+          
+          if (forceResponse.success) {
+            setImages(prev => prev.filter(img => !(img.id === image.id && img.server_id === image.server_id)));
+            setError(null);
+          } else {
+            setError(forceResponse.error || 'Failed to delete image');
+          }
+        }
+      }
+    } catch (err) {
+      setError('Failed to delete image');
+      console.error('Delete error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePullImage = (repository: string, tag: string) => {
@@ -345,10 +444,25 @@ export const AdminImages: React.FC = () => {
                     </TableCell>
                     <TableCell className="font-medium">{image.repository}</TableCell>
                     <TableCell>
-                      <Badge className="bg-gray-800 text-white border-gray-600">{image.tag}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge className="bg-gray-800 text-white border-gray-600">{image.tag}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(`${image.repository}:${image.tag}`, `tag-${image.id}-${image.tag}-${index}`)}
+                          title="Copy image:tag"
+                        >
+                          {copiedText === `tag-${image.id}-${image.tag}-${index}` ? (
+                            <Check className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell className="font-mono text-sm">
-                      {image.short_id || image.id.substring(0, 20)}...
+                      {getShortId(image.id)}
                     </TableCell>
                     <TableCell>{formatBytes(image.size || 0)}</TableCell>
                     <TableCell>{formatDate(image.created)}</TableCell>
@@ -367,7 +481,7 @@ export const AdminImages: React.FC = () => {
                           <Button
                             size="sm"
                             className="bg-gray-800 hover:bg-black text-white"
-                            onClick={() => handleDeleteImage(image.id)}
+                            onClick={() => handleDeleteImage(image)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -413,11 +527,41 @@ export const AdminImages: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Tag</label>
-                  <div><Badge>{selectedImage.tag}</Badge></div>
+                  <div className="flex items-center gap-2">
+                    <Badge>{selectedImage.tag}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => copyToClipboard(`${selectedImage.repository}:${selectedImage.tag}`, 'dialog-tag')}
+                      title="Copy image:tag"
+                    >
+                      {copiedText === 'dialog-tag' ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Image ID</label>
-                  <p className="font-mono text-sm">{selectedImage.id}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-sm">{getShortId(selectedImage.id)}</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => copyToClipboard(selectedImage.id, 'dialog-id')}
+                      title="Copy full image ID"
+                    >
+                      {copiedText === 'dialog-id' ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Server</label>
@@ -461,7 +605,7 @@ export const AdminImages: React.FC = () => {
                         {imageDetails.layers.map((layer, idx) => (
                           <TableRow key={layer.id || idx}>
                             <TableCell>{idx + 1}</TableCell>
-                            <TableCell className="font-mono text-sm">{layer.id?.substring(0, 20) || 'N/A'}...</TableCell>
+                            <TableCell className="font-mono text-sm">{layer.id ? getShortId(layer.id) : 'N/A'}</TableCell>
                             <TableCell>{layer.size}</TableCell>
                           </TableRow>
                         ))}

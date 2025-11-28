@@ -628,6 +628,45 @@ def init_stats_routes(app):
         image_details = get_docker_image_details(image_id)
         return jsonify(image_details)
     
+    @app.route('/delete_docker_image/<image_id>', methods=['DELETE'])
+    def delete_docker_image_route(image_id):
+        """Delete a Docker image from this agent"""
+        try:
+            data = request.get_json() or {}
+            force = data.get('force', False)
+            
+            client = docker.from_env()
+            
+            # URL decode the image_id in case it contains special characters
+            from urllib.parse import unquote
+            decoded_image_id = unquote(image_id)
+            
+            client.images.remove(decoded_image_id, force=force)
+            
+            logger.info(f"Successfully deleted Docker image: {decoded_image_id}")
+            return jsonify({
+                'success': True,
+                'message': f'Image {decoded_image_id} deleted successfully'
+            })
+        except docker.errors.ImageNotFound:
+            logger.warning(f"Docker image not found: {image_id}")
+            return jsonify({
+                'success': False,
+                'error': f'Image not found: {image_id}'
+            }), 404
+        except docker.errors.APIError as e:
+            logger.error(f"Docker API error deleting image {image_id}: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 400
+        except Exception as e:
+            logger.error(f"Error deleting Docker image {image_id}: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
     @app.route('/get_containers', methods=['GET'])
     def get_containers_route():
         """Get detailed information about all containers"""

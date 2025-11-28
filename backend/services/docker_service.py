@@ -96,6 +96,28 @@ class DockerService:
             logger.error(f"Error getting Docker image details: {e}")
             return {'error': 'Internal server error'}
     
+    def delete_docker_image(self, server_id: str, image_id: str, force: bool = False) -> Dict[str, Any]:
+        """Delete a Docker image from a specific server."""
+        try:
+            agents = read_agents_file()
+            
+            # Convert server_id to IP if it's in format 'server-192-168-68-108'
+            agent_ip = server_id
+            if server_id.startswith('server-'):
+                agent_ip = server_id.replace('server-', '').replace('-', '.')
+            
+            if agent_ip not in agents:
+                return {'success': False, 'error': f'Server not found: {agent_ip}'}
+            
+            # Call agent to delete image
+            result = self.agent_service.delete_docker_image(agent_ip, image_id, self.agent_port, force)
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"Error deleting Docker image: {e}")
+            return {'success': False, 'error': 'Internal server error'}
+    
     def get_servers_list(self) -> List[Dict[str, Any]]:
         """
         Get list of available servers for Docker images management.
