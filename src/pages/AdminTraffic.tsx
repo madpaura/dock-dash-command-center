@@ -36,6 +36,9 @@ const AdminTraffic: React.FC = () => {
     ipFilter: '',
     userFilter: ''
   });
+  // Local state for text inputs (only apply on Enter)
+  const [ipFilterInput, setIpFilterInput] = useState('');
+  const [userFilterInput, setUserFilterInput] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
 
   const fetchTrafficData = async () => {
@@ -75,7 +78,8 @@ const AdminTraffic: React.FC = () => {
 
   useEffect(() => {
     fetchTrafficData();
-  }, [filters, user?.token]);
+    // Only trigger on period/days changes, not on text filter changes
+  }, [filters.period, filters.days, user?.token]);
 
   const handleFilterChange = (key: keyof FilterState, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -88,6 +92,16 @@ const AdminTraffic: React.FC = () => {
       ipFilter: '',
       userFilter: ''
     });
+    setIpFilterInput('');
+    setUserFilterInput('');
+  };
+
+  const handleFilterKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: 'ipFilter' | 'userFilter') => {
+    if (e.key === 'Enter') {
+      const value = field === 'ipFilter' ? ipFilterInput : userFilterInput;
+      setFilters(prev => ({ ...prev, [field]: value }));
+      fetchTrafficData();
+    }
   };
 
   const exportData = () => {
@@ -247,24 +261,29 @@ const AdminTraffic: React.FC = () => {
             <div className="space-y-2">
               <label className="text-sm font-medium">IP Filter</label>
               <Input
-                placeholder="Filter by IP address"
-                value={filters.ipFilter}
-                onChange={(e) => handleFilterChange('ipFilter', e.target.value)}
+                placeholder="Filter by IP (press Enter)"
+                value={ipFilterInput}
+                onChange={(e) => setIpFilterInput(e.target.value)}
+                onKeyDown={(e) => handleFilterKeyDown(e, 'ipFilter')}
               />
             </div>
             
             <div className="space-y-2">
               <label className="text-sm font-medium">User Filter</label>
               <Input
-                placeholder="Filter by username"
-                value={filters.userFilter}
-                onChange={(e) => handleFilterChange('userFilter', e.target.value)}
+                placeholder="Filter by username (press Enter)"
+                value={userFilterInput}
+                onChange={(e) => setUserFilterInput(e.target.value)}
+                onKeyDown={(e) => handleFilterKeyDown(e, 'userFilter')}
               />
             </div>
           </div>
           
           <div className="flex items-center gap-2 mt-4">
-            <Button onClick={fetchTrafficData}>
+            <Button onClick={() => {
+              setFilters(prev => ({ ...prev, ipFilter: ipFilterInput, userFilter: userFilterInput }));
+              fetchTrafficData();
+            }}>
               <Eye className="h-4 w-4 mr-2" />
               Apply Filters
             </Button>
