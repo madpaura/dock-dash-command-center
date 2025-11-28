@@ -413,7 +413,7 @@ export const AdminImages: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Tag</label>
-                  <p><Badge>{selectedImage.tag}</Badge></p>
+                  <div><Badge>{selectedImage.tag}</Badge></div>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Image ID</label>
@@ -421,7 +421,7 @@ export const AdminImages: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Server</label>
-                  <p><Badge variant="outline">{selectedImage.server_name}</Badge></p>
+                  <div><Badge variant="outline">{selectedImage.server_name}</Badge></div>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Size</label>
