@@ -105,6 +105,72 @@ class DatabaseManager:
             INDEX idx_status (status),
             INDEX idx_user_id (user_id)
         );
+
+        CREATE TABLE IF NOT EXISTS registry_servers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            url VARCHAR(255) NOT NULL,
+            registry_type ENUM('docker_hub', 'private', 'gcr', 'ecr', 'acr', 'harbor') DEFAULT 'private',
+            username VARCHAR(100),
+            password VARCHAR(255),
+            is_default BOOLEAN DEFAULT FALSE,
+            is_active BOOLEAN DEFAULT TRUE,
+            metadata JSON,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_name (name),
+            INDEX idx_is_active (is_active)
+        );
+
+        CREATE TABLE IF NOT EXISTS build_projects (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            description TEXT,
+            repo_url VARCHAR(500) NOT NULL,
+            repo_branch VARCHAR(100) DEFAULT 'main',
+            dockerfile_path VARCHAR(255) DEFAULT 'Dockerfile',
+            build_context VARCHAR(255) DEFAULT '.',
+            git_pat VARCHAR(500),
+            default_registry_id INT,
+            image_name VARCHAR(255),
+            auto_increment_tag BOOLEAN DEFAULT TRUE,
+            last_tag VARCHAR(100),
+            is_active BOOLEAN DEFAULT TRUE,
+            metadata JSON,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (default_registry_id) REFERENCES registry_servers(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_name (name),
+            INDEX idx_is_active (is_active)
+        );
+
+        CREATE TABLE IF NOT EXISTS build_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            project_id INT NOT NULL,
+            registry_id INT,
+            tag VARCHAR(100) NOT NULL,
+            status ENUM('pending', 'cloning', 'building', 'pushing', 'completed', 'failed') DEFAULT 'pending',
+            build_logs LONGTEXT,
+            error_message TEXT,
+            image_digest VARCHAR(255),
+            image_size BIGINT,
+            git_commit VARCHAR(100),
+            triggered_by INT,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP NULL,
+            duration_seconds INT,
+            metadata JSON,
+            FOREIGN KEY (project_id) REFERENCES build_projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (registry_id) REFERENCES registry_servers(id) ON DELETE SET NULL,
+            FOREIGN KEY (triggered_by) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_project_id (project_id),
+            INDEX idx_status (status),
+            INDEX idx_started_at (started_at)
+        );
         """
         
         conn = self.get_connection()

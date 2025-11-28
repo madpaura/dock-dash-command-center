@@ -6,6 +6,8 @@ from .user_repository import UserRepository
 from .session_repository import SessionRepository
 from .audit_repository import AuditRepository
 from .traffic_repository import TrafficRepository
+from .registry_repository import RegistryRepository
+from .project_repository import ProjectRepository, BuildHistoryRepository
 
 
 class UserDatabase:
@@ -134,5 +136,8 @@ __all__ = [
     'SessionRepository',
     'AuditRepository',
     'TrafficRepository',
+    'RegistryRepository',
+    'ProjectRepository',
+    'BuildHistoryRepository',
     'UserDatabase'
 ]

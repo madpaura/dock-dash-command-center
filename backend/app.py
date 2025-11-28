@@ -1507,6 +1507,14 @@ def clear_container_cache():
 from api.traffic_routes import traffic_bp
 app.register_blueprint(traffic_bp)
 
+# Registry Management endpoints
+from api.registry_routes import registry_bp
+app.register_blueprint(registry_bp)
+
+# Build Project endpoints
+from api.build_routes import build_bp
+app.register_blueprint(build_bp)
+
 # Helper function for admin authentication
 def require_admin_auth():
     """Helper function for admin authentication."""
