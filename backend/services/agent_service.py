@@ -204,6 +204,31 @@ class AgentService:
             logger.error(f"Error querying container status from agent {agent_ip}:{self.agent_port}: {e}")
             return None
 
+    def query_agent_port_info(self, agent_ip: str, container_name: str) -> Optional[Dict[str, Any]]:
+        """Query port allocation info for a container from an agent."""
+        try:
+            logger.debug(f"Querying port info for {container_name} from agent {agent_ip}:{self.agent_port}")
+            
+            url = f"http://{agent_ip}:{self.agent_port}/api/containers/{container_name}/ports"
+            
+            response = requests.get(url, timeout=self.timeout)
+            if response.status_code == 200:
+                result = response.json()
+                logger.debug(f"Port info response: {result}")
+                return result
+            else:
+                logger.warning(f"Agent {agent_ip}:{self.agent_port} returned status code {response.status_code}")
+                return None
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout querying port info from agent {agent_ip}:{self.agent_port}")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Connection failed to agent {agent_ip}:{self.agent_port}")
+            return None
+        except Exception as e:
+            logger.error(f"Error querying port info from agent {agent_ip}:{self.agent_port}: {e}")
+            return None
+
     def manage_user_container(self, agent_ip: str, container_name: str, action: str) -> Optional[Dict[str, Any]]:
         try:
             logger.debug(f"Managing container {container_name} with action {action} on agent {agent_ip}:{self.agent_port}")
