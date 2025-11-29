@@ -14,7 +14,9 @@ import {
   Circle,
   Loader2,
   RefreshCw,
-  KeyRound
+  KeyRound,
+  Code,
+  BookOpen
 } from 'lucide-react';
 import { adminApi, type AdminUser, type AdminStats, type UserApprovalResponse, type ContainerCreationResult } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
@@ -68,7 +70,9 @@ export const AdminUsers: React.FC = () => {
   const [dialogMode, setDialogMode] = useState<'edit' | 'create'>('edit');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [userToDeleteName, setUserToDeleteName] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteWorkspace, setDeleteWorkspace] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPasswordResetDialogOpen, setIsPasswordResetDialogOpen] = useState(false);
   const [userToResetPassword, setUserToResetPassword] = useState<AdminUser | null>(null);
@@ -117,8 +121,10 @@ export const AdminUsers: React.FC = () => {
     fetchData(true);
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = (userId: string, userName: string) => {
     setUserToDelete(userId);
+    setUserToDeleteName(userName);
+    setDeleteWorkspace(false); // Reset checkbox
     setIsDeleteDialogOpen(true);
   };
 
@@ -127,12 +133,17 @@ export const AdminUsers: React.FC = () => {
     
     try {
       setIsDeleting(true);
-      const response = await adminApi.deleteUser(userToDelete, user.token);
+      const response = await adminApi.deleteUser(userToDelete, user.token, deleteWorkspace);
       if (response.success) {
-        success('User deleted successfully!');
+        const message = deleteWorkspace && response.data?.workspace_deleted 
+          ? 'User and workspace deleted successfully!' 
+          : 'User deleted successfully!';
+        success(message);
         setUsers(users.filter(u => u.id !== userToDelete));
         setIsDeleteDialogOpen(false);
         setUserToDelete(null);
+        setUserToDeleteName(null);
+        setDeleteWorkspace(false);
       } else {
         showError('Failed to delete user', response.error || 'Unknown error occurred');
       }
@@ -397,7 +408,30 @@ export const AdminUsers: React.FC = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-1">
+                        {/* VSCode Button */}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className={`h-8 w-8 p-0 ${user.serviceUrls?.vscode ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50' : 'opacity-40 cursor-not-allowed'}`}
+                          onClick={() => user.serviceUrls?.vscode && window.open(user.serviceUrls.vscode, '_blank')}
+                          disabled={!user.serviceUrls?.vscode}
+                          title={user.serviceUrls?.vscode ? `Open VSCode for ${user.name}` : 'VSCode not available'}
+                        >
+                          <Code className="w-4 h-4" />
+                        </Button>
+                        {/* Jupyter Button */}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className={`h-8 w-8 p-0 ${user.serviceUrls?.jupyter ? 'text-orange-600 hover:text-orange-700 hover:bg-orange-50' : 'opacity-40 cursor-not-allowed'}`}
+                          onClick={() => user.serviceUrls?.jupyter && window.open(user.serviceUrls.jupyter, '_blank')}
+                          disabled={!user.serviceUrls?.jupyter}
+                          title={user.serviceUrls?.jupyter ? `Open Jupyter for ${user.name}` : 'Jupyter not available'}
+                        >
+                          <BookOpen className="w-4 h-4" />
+                        </Button>
+                        <div className="w-px h-6 bg-border mx-1" /> {/* Separator */}
                         <Button 
                           variant="ghost" 
                           size="sm" 
@@ -420,7 +454,7 @@ export const AdminUsers: React.FC = () => {
                           variant="ghost" 
                           size="sm" 
                           className={`h-8 w-8 p-0 text-destructive hover:text-destructive ${user.role?.toLowerCase() === 'admin' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          onClick={() => { if (user.role?.toLowerCase() !== 'admin') handleDeleteUser(user.id); }}
+                          onClick={() => { if (user.role?.toLowerCase() !== 'admin') handleDeleteUser(user.id, user.name); }}
                           disabled={(isDeleting && userToDelete === user.id) || user.role?.toLowerCase() === 'admin'}
                           title={user.role?.toLowerCase() === 'admin' ? 'Admin users cannot be deleted' : 'Delete user'}
                         >
@@ -494,14 +528,45 @@ export const AdminUsers: React.FC = () => {
       />
       
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => {
+        setIsDeleteDialogOpen(open);
+        if (!open) {
+          setDeleteWorkspace(false);
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete User: {userToDeleteName}</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the user and all associated data.
+              This action cannot be undone. This will permanently delete the user account, container, and nginx routes.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          
+          {/* Workspace deletion option */}
+          <div className="flex items-start space-x-3 py-4 px-1">
+            <input
+              type="checkbox"
+              id="delete-workspace"
+              checked={deleteWorkspace}
+              onChange={(e) => setDeleteWorkspace(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-destructive focus:ring-destructive"
+            />
+            <div className="flex flex-col">
+              <label htmlFor="delete-workspace" className="text-sm font-medium text-foreground cursor-pointer">
+                Also delete workspace folder
+              </label>
+              <span className="text-xs text-muted-foreground">
+                This will permanently remove all user files and data from the server
+              </span>
+            </div>
+          </div>
+          
+          {deleteWorkspace && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 text-sm text-destructive">
+              <strong>Warning:</strong> All files in the user's workspace will be permanently deleted. This cannot be recovered.
+            </div>
+          )}
+          
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -515,7 +580,7 @@ export const AdminUsers: React.FC = () => {
                   Deleting...
                 </>
               ) : (
-                "Delete User"
+                deleteWorkspace ? "Delete User & Workspace" : "Delete User"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

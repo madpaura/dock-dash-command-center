@@ -196,7 +196,15 @@ def delete_user(user_id):
         return error_response, status_code
     
     admin_username = session.get('username', 'admin')
-    result = user_service.delete_user(user_id, admin_username)
+    
+    # Check for delete_workspace parameter (from query string or JSON body)
+    delete_workspace = False
+    if request.is_json and request.json:
+        delete_workspace = request.json.get('delete_workspace', False)
+    else:
+        delete_workspace = request.args.get('delete_workspace', 'false').lower() == 'true'
+    
+    result = user_service.delete_user(user_id, admin_username, delete_workspace=delete_workspace)
     
     if result['success']:
         return jsonify({
@@ -204,7 +212,9 @@ def delete_user(user_id):
             'message': result['message'],
             'user_deleted': result['user_deleted'],
             'container_deleted': result['container_deleted'],
-            'container_details': result.get('container_details')
+            'container_details': result.get('container_details'),
+            'workspace_deleted': result.get('workspace_deleted', False),
+            'workspace_path': result.get('workspace_path')
         })
     else:
         return jsonify({
@@ -212,7 +222,9 @@ def delete_user(user_id):
             'error': result['message'],
             'user_deleted': result['user_deleted'],
             'container_deleted': result['container_deleted'],
-            'container_details': result.get('container_details')
+            'container_details': result.get('container_details'),
+            'workspace_deleted': result.get('workspace_deleted', False),
+            'workspace_path': result.get('workspace_path')
         }), 400
 
 
