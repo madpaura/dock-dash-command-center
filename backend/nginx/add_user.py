@@ -95,9 +95,10 @@ class NginxUserManager:
             with open(self.config_file, 'r') as f:
                 content = f.read()
                 
-            # Check for upstream blocks
-            vscode_upstream = f"upstream vscode_{username}"
-            jupyter_upstream = f"upstream jupyter_{username}"
+            # Check for upstream blocks with exact match (include space or { after username)
+            # This prevents 'test' matching 'testuser'
+            vscode_upstream = f"upstream vscode_{username} {{"
+            jupyter_upstream = f"upstream jupyter_{username} {{"
             
             return vscode_upstream in content or jupyter_upstream in content
             

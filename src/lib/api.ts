@@ -309,6 +309,10 @@ export interface AdminUser {
   serverLocation: string;
   status: string;
   isNewRegistration?: boolean;
+  serviceUrls?: {
+    vscode: string | null;
+    jupyter: string | null;
+  };
 }
 
 export interface ServerForUsers {
@@ -416,12 +420,14 @@ export const adminApi = {
     });
   },
 
-  async deleteUser(userId: string, token: string): Promise<ApiResponse<{}>> {
-    return fetchApi<{}>(`/users/${userId}`, {
+  async deleteUser(userId: string, token: string, deleteWorkspace: boolean = false): Promise<ApiResponse<{ workspace_deleted?: boolean; workspace_path?: string }>> {
+    return fetchApi<{ workspace_deleted?: boolean; workspace_path?: string }>(`/users/${userId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ delete_workspace: deleteWorkspace }),
     });
   },
 

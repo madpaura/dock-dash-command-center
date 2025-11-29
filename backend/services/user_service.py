@@ -63,13 +63,15 @@ class UserService:
             logger.error(f"Error fetching user {user_id}: {e}")
             return None
     
-    def delete_user(self, user_id: int, admin_username: str) -> Dict[str, Any]:
+    def delete_user(self, user_id: int, admin_username: str, delete_workspace: bool = False) -> Dict[str, Any]:
         result = {
             'success': False,
             'message': '',
             'user_deleted': False,
             'container_deleted': False,
-            'container_details': None
+            'container_details': None,
+            'workspace_deleted': False,
+            'workspace_path': None
         }
         
         try:
@@ -117,6 +119,16 @@ class UserService:
             else:
                 logger.warning(f"Failed to remove nginx routes for user {username}: {nginx_deletion_result.get('message')}")
             
+            # Delete workspace folder if requested
+            if delete_workspace:
+                workspace_deleted, workspace_path = self._delete_user_workspace(username, container_info, metadata)
+                result['workspace_deleted'] = workspace_deleted
+                result['workspace_path'] = workspace_path
+                if workspace_deleted:
+                    logger.info(f"Workspace deleted for user {username}: {workspace_path}")
+                else:
+                    logger.warning(f"Failed to delete workspace for user {username}")
+            
             # Delete user from database
             if self.db.delete_user_by_username(username):
                 result['user_deleted'] = True
@@ -127,7 +139,9 @@ class UserService:
                     'message': f'User {username} (ID: {user_id}) deleted by {admin_username}',
                     'deleted_user': username,
                     'container_deleted': result['container_deleted'],
-                    'nginx_routes_deleted': result['nginx_routes_deleted']
+                    'nginx_routes_deleted': result['nginx_routes_deleted'],
+                    'workspace_deleted': result['workspace_deleted'],
+                    'workspace_path': result['workspace_path']
                 }
                 if container_info:
                     audit_details['container_name'] = container_info.get('name')
@@ -149,6 +163,8 @@ class UserService:
                     success_parts.append('container')
                 if result['nginx_routes_deleted']:
                     success_parts.append('nginx routes')
+                if result['workspace_deleted']:
+                    success_parts.append('workspace')
                 
                 if len(success_parts) > 1:
                     result['message'] = f'{success_parts[0]} and associated {", ".join(success_parts[1:])} successfully deleted'
@@ -161,6 +177,8 @@ class UserService:
                     warnings.append('container deletion failed')
                 if not result['nginx_routes_deleted']:
                     warnings.append('nginx route removal failed')
+                if delete_workspace and not result['workspace_deleted']:
+                    warnings.append('workspace deletion failed')
                 
                 if warnings:
                     result['message'] += f', but {" and ".join(warnings)}'
@@ -514,6 +532,27 @@ class UserService:
                 else:
                     role = 'Pending'
                 
+                # Build service URLs for approved users with containers
+                service_urls = {
+                    'vscode': None,
+                    'jupyter': None
+                }
+                
+                if user.get('is_approved') and not no_container_needed:
+                    mgmt_server = os.getenv('MGMT_SERVER_IP', 'localhost')
+                    username = user['username']
+                    
+                    # Check if nginx routes are configured
+                    nginx_routes = metadata.get('nginx_routes', {})
+                    if nginx_routes.get('configured'):
+                        # Use nginx proxy URLs
+                        service_urls['vscode'] = f"http://{mgmt_server}/user/{username}/vscode/"
+                        service_urls['jupyter'] = f"http://{mgmt_server}/user/{username}/jupyter/"
+                    elif nginx_routes.get('vscode_server') and nginx_routes.get('jupyter_server'):
+                        # Use direct server URLs
+                        service_urls['vscode'] = f"http://{nginx_routes['vscode_server']}/"
+                        service_urls['jupyter'] = f"http://{nginx_routes['jupyter_server']}/"
+                
                 admin_user = {
                     'id': str(user['id']),
                     'name': user['username'],
@@ -525,7 +564,8 @@ class UserService:
                     'server': server_assignment,
                     'serverLocation': server_location,
                     'status': 'Running' if user.get('is_approved') else ('Pending' if is_new_registration else 'Stopped'),
-                    'isNewRegistration': is_new_registration
+                    'isNewRegistration': is_new_registration,
+                    'serviceUrls': service_urls
                 }
                 admin_users.append(admin_user)
             
@@ -790,6 +830,71 @@ class UserService:
             return server_assignment
         
         return server_assignment
+    
+    def _delete_user_workspace(self, username: str, container_info: Optional[Dict[str, Any]], 
+                               metadata: Dict[str, Any]) -> tuple:
+        """
+        Delete user's workspace folder from the server.
+        
+        Args:
+            username: The username
+            container_info: Container information from metadata
+            metadata: User metadata
+            
+        Returns:
+            Tuple of (success: bool, workspace_path: str or None)
+        """
+        import shutil
+        
+        try:
+            # Try to get workspace path from container name (format: code-server-{username}-{hash})
+            workspace_path = None
+            
+            if container_info and container_info.get('name'):
+                container_name = container_info['name']
+                # Extract the user-hash part from container name
+                # Format: code-server-{username}-{hash} -> {username}-{hash}
+                if container_name.startswith('code-server-'):
+                    user_hash = container_name.replace('code-server-', '')
+                    # Get WORKDIR_DEPLOY from environment
+                    workdir_deploy = os.getenv('WORKDIR_DEPLOY', '/home/vms/')
+                    workspace_path = os.path.join(workdir_deploy, user_hash)
+            
+            # Fallback: try to find workspace by username pattern
+            if not workspace_path or not os.path.exists(workspace_path):
+                workdir_deploy = os.getenv('WORKDIR_DEPLOY', '/home/vms/')
+                # Look for directories matching username-*
+                if os.path.exists(workdir_deploy):
+                    for item in os.listdir(workdir_deploy):
+                        if item.startswith(f"{username}-"):
+                            workspace_path = os.path.join(workdir_deploy, item)
+                            break
+            
+            if not workspace_path:
+                logger.warning(f"Could not determine workspace path for user {username}")
+                return False, None
+            
+            if not os.path.exists(workspace_path):
+                logger.info(f"Workspace path does not exist: {workspace_path}")
+                return True, workspace_path  # Consider it success if already deleted
+            
+            # Delete the workspace directory
+            logger.info(f"Deleting workspace directory: {workspace_path}")
+            shutil.rmtree(workspace_path)
+            
+            if not os.path.exists(workspace_path):
+                logger.success(f"Successfully deleted workspace: {workspace_path}")
+                return True, workspace_path
+            else:
+                logger.error(f"Workspace still exists after deletion attempt: {workspace_path}")
+                return False, workspace_path
+                
+        except PermissionError as e:
+            logger.error(f"Permission denied when deleting workspace for {username}: {e}")
+            return False, workspace_path if 'workspace_path' in locals() else None
+        except Exception as e:
+            logger.error(f"Error deleting workspace for {username}: {e}")
+            return False, workspace_path if 'workspace_path' in locals() else None
     
     # Password Reset Methods
     

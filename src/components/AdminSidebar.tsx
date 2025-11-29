@@ -107,7 +107,7 @@ export const AdminSidebar: React.FC = () => {
               <span className="text-sm font-normal text-sidebar-foreground">About</span>
             </div>
             <div className="text-xs text-sidebar-foreground/70 leading-relaxed">
-              <p className="mb-1">GPU Dashboard v1.0</p>
+              <p className="mb-1">GPU Dashboard v1.1</p>
               <p className="mb-2">Built with React & Flask</p>
               <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded-full bg-black dark:bg-white flex items-center justify-center text-stone-50 dark:text-amber-50 hover:animate-spin hover:scale-110 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl">
