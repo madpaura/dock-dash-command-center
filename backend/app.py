@@ -60,6 +60,16 @@ def add_app_log(level, message, username=None, ip_address=None):
 from dotenv import load_dotenv
 load_dotenv(".env", override=True)
 
+# Validate configuration before starting
+from utils.config_validator import validate_config, ConfigValidationError
+try:
+    validate_config(strict=True)
+except ConfigValidationError as e:
+    logger.error(f"Configuration validation failed: {e}")
+    logger.error("Please fix the configuration issues and restart the application.")
+    import sys
+    sys.exit(1)
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
