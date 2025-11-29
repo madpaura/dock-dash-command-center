@@ -1,13 +1,13 @@
-# Docker Dashboard Command Center - Architecture Overview
+# GPU Dashboard Command Center - Architecture Overview
 
 ## System Architecture
 
-The Docker Dashboard Command Center is a comprehensive container management platform built with a modern microservices architecture. The system consists of three main layers:
+The GPU Dashboard Command Center is a comprehensive container management platform built with a modern microservices architecture. The system consists of three main layers:
 
 ### 1. Frontend Layer (React + TypeScript)
 **Location**: `/src/`
 - **Framework**: React 18 with TypeScript, Vite build system
-- **UI Library**: Tailwind CSS with custom components
+- **UI Library**: Tailwind CSS with shadcn-ui components
 - **State Management**: React Context API for authentication
 - **Key Components**:
   - **Pages**: AdminDashboard, AdminServers, AdminImages, AdminUsers, AdminLogs, UserDashboard, UserContainers, UserFileBrowser
@@ -24,11 +24,10 @@ The Docker Dashboard Command Center is a comprehensive container management plat
 - **API Routes** (`app.py`): RESTful endpoints for all operations
 - **Services** (`/services/`): Business logic layer
   - AuthService, UserService, ServerService, DockerService
-  - SSHService, CleanupService, AuditService, AgentService
+  - SSHService, CleanupService, AuditService, AgentService, NginxService
 - **Database** (`/database/`): Repository pattern with MySQL
   - UserRepository, SessionRepository, AuditRepository
-- **Models** (`/models/`): Data structures and validation
-- **Utils** (`/utils/`): Helper functions and validators
+- **Utils** (`/utils/`): Helper functions, validators, config validation, permissions
 
 ### 3. Agent Layer (Flask + Docker SDK)
 **Location**: `/backend/agent/`
@@ -53,101 +52,11 @@ Agent Services (Multiple Hosts)
 Docker Daemon (Container Management)
 ```
 
-## Key Features
+## Architecture Diagram
 
-### Multi-Tenant User Management
-- **Admin Users**: Full system management capabilities
-- **Regular Users**: Container access with resource limits
-- **Authentication**: Session-based with audit logging
-- **Authorization**: Role-based access control
-
-### Container Orchestration
-- **Lifecycle Management**: Create, start, stop, delete containers
-- **Resource Allocation**: CPU, memory, GPU assignment
-- **Port Management**: Dynamic port allocation with conflict resolution
-- **Multi-Host Support**: Distributed agent architecture
-
-### Infrastructure Monitoring
-- **Real-time Metrics**: CPU, memory, disk usage across hosts
-- **Container Statistics**: Resource usage and performance monitoring
-- **Server Health**: Online/offline status with automatic detection
-- **Audit Logging**: Comprehensive action tracking
-
-### Advanced Operations
-- **SSH Terminal**: Web-based SSH access to containers and hosts
-- **Server Cleanup**: Automated Docker cleanup with selective operations
-- **Image Management**: Docker image browsing and management
-- **File Browser**: Container filesystem access
-
-## Security Architecture
-
-### Authentication & Authorization
-- **Session Management**: Secure session tokens with expiration
-- **Admin Controls**: Separate admin authentication layer
-- **API Security**: Bearer token authentication for all endpoints
-- **Audit Trail**: Complete logging of all user actions
-
-### Network Security
-- **Agent Communication**: Secure HTTP API between backend and agents
-- **SSH Integration**: Secure shell access with credential management
-- **Port Isolation**: User-specific port allocations
-
-## Database Schema
-
-### Core Tables
-- **users**: User accounts, roles, and metadata
-- **user_sessions**: Active session management
-- **audit_logs**: Comprehensive action logging
-- **port_allocations**: Dynamic port assignment tracking
-
-## Deployment Architecture
-
-### Docker Containerization
-- **Backend Container**: Flask application with all dependencies
-- **Agent Container**: Lightweight monitoring and management service
-- **Database**: MySQL container with persistent storage
-- **Nginx**: Reverse proxy for user-specific routing
-
-### Multi-Host Setup
-- **Central Backend**: Single management server
-- **Distributed Agents**: Multiple Docker hosts with agent services
-- **Load Balancing**: Nginx-based routing for user isolation
-
-## Technology Stack
-
-### Frontend
-- React 18, TypeScript, Tailwind CSS, Vite
-- React Router, React Context API
-- Lucide React (icons), Recharts (charts)
-
-### Backend
-- Flask, Python 3.9+, MySQL
-- Docker SDK, Paramiko (SSH), Requests
-- JWT tokens, Bcrypt (password hashing)
-
-### Infrastructure
-- Docker, Docker Compose
-- Nginx (reverse proxy)
-- Ubuntu/Linux (host OS)
-
-## Scalability Features
-
-### Horizontal Scaling
-- **Agent Distribution**: Add new Docker hosts with agent deployment
-- **Load Distribution**: Automatic server selection for new containers
-- **Resource Pooling**: Aggregate resource management across hosts
-
-### Performance Optimizations
-- **Caching**: Server resource caching (30s TTL)
-- **Concurrent Processing**: ThreadPoolExecutor for agent queries
-- **Connection Pooling**: Database connection management
-- **Timeout Management**: Configurable timeouts for agent communication
-
-This architecture provides a robust, scalable, and secure platform for managing Docker containers across multiple hosts with comprehensive user management and monitoring capabilities.
-
-
+```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           DOCKER DASHBOARD COMMAND CENTER                       │
+│                           GPU DASHBOARD COMMAND CENTER                          │
 │                                ARCHITECTURE DIAGRAM                             │
 └─────────────────────────────────────────────────────────────────────────────────┘
 
@@ -157,7 +66,7 @@ This architecture provides a robust, scalable, and secure platform for managing 
 │     PAGES       │   COMPONENTS    │   API LAYER     │      HOOKS & UTILS      │
 ├─────────────────┼─────────────────┼─────────────────┼─────────────────────────┤
 │ • AdminDashboard│ • Header/Sidebar│ • authApi       │ • useAuth               │
-│ • AdminServers  │ • SSH Terminal  │ • adminApi      │ • useMobile             │
+│ • AdminServers  │ • SSH Terminal  │ • adminApi      │ • usePermissions        │
 │ • AdminImages   │ • Server Dialogs│ • serverApi     │ • useToast              │
 │ • AdminUsers    │ • User Mgmt     │ • dockerApi     │ • API utilities         │
 │ • AdminLogs     │ • Resource Mon  │ • userApi       │ • Validators            │
@@ -172,15 +81,15 @@ This architecture provides a robust, scalable, and secure platform for managing 
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                              BACKEND LAYER (Flask + Python)                    │
 ├─────────────────┬─────────────────┬─────────────────┬─────────────────────────┤
-│   API ROUTES    │    SERVICES     │    DATABASE     │        MODELS           │
+│   API ROUTES    │    SERVICES     │    DATABASE     │        UTILS            │
 ├─────────────────┼─────────────────┼─────────────────┼─────────────────────────┤
-│ • /api/auth/*   │ • AuthService   │ • UserRepository│ • User Models           │
-│ • /api/admin/*  │ • UserService   │ • SessionRepo   │ • Server Models         │
-│ • /api/users/*  │ • ServerService │ • AuditRepo     │ • Docker Models         │
-│ • /api/servers/*│ • DockerService │ • DatabaseMgr   │ • SSH Models            │
-│ • /api/docker/* │ • SSHService    │ • Connection    │ • Session Models        │
-│ • /api/ssh/*    │ • CleanupService│   Pool          │ • Cleanup Models        │
-│ • /api/cleanup/*│ • AuditService  │ • MySQL DB      │ • Audit Models          │
+│ • /api/auth/*   │ • AuthService   │ • UserRepository│ • ConfigValidator       │
+│ • /api/admin/*  │ • UserService   │ • SessionRepo   │ • Permissions           │
+│ • /api/users/*  │ • ServerService │ • AuditRepo     │ • Validators            │
+│ • /api/servers/*│ • DockerService │ • DatabaseMgr   │ • Helpers               │
+│ • /api/docker/* │ • SSHService    │ • Connection    │                         │
+│ • /api/ssh/*    │ • CleanupService│   Pool          │                         │
+│ • /api/cleanup/*│ • AuditService  │ • MySQL DB      │                         │
 │ • /api/audit/*  │ • AgentService  │                 │                         │
 │                 │ • NginxService  │                 │                         │
 └─────────────────┴─────────────────┴─────────────────┴─────────────────────────┘
@@ -215,31 +124,93 @@ This architecture provides a robust, scalable, and secure platform for managing 
 │ • Network Stack │ • Network Stack │ • Network Stack │ • Monitoring Data       │
 │ • Storage Vols  │ • Storage Vols  │ • Storage Vols  │                         │
 └─────────────────┴─────────────────┴─────────────────┴─────────────────────────┘
+```
 
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                                  DATA FLOW                                     │
-└─────────────────────────────────────────────────────────────────────────────────┘
+## Key Features
 
-User Request → Frontend (React) → API Layer → Backend (Flask) → Service Layer
-     ↓
-Database Operations ← Repository Layer ← Business Logic ← Service Layer
-     ↓
-Agent Communication → HTTP API → Agent Services → Docker SDK → Container Operations
+### Multi-Tenant User Management
+- **Admin Users**: Full system management capabilities
+- **QVP Users**: Restricted admin access (build/deploy only, no user management)
+- **Regular Users**: Container access with resource limits
+- **Authentication**: Session-based with audit logging
+- **Authorization**: Role-based access control with granular permissions
 
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                               SECURITY LAYERS                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
+### Container Orchestration
+- **Lifecycle Management**: Create, start, stop, delete containers
+- **Resource Allocation**: CPU, memory, GPU assignment
+- **Port Management**: Dynamic port allocation with conflict resolution
+- **Multi-Host Support**: Distributed agent architecture
+- **Workspace Management**: Persistent user workspaces with automatic setup
 
-Authentication: Session Tokens → Bearer Auth → Admin Controls → Audit Logging
-Authorization: Role-Based Access → Resource Limits → User Isolation
-Network Security: HTTPS → Agent API → SSH Integration → Port Isolation
-Data Security: Encrypted Sessions → Secure Storage → Audit Trail → Backup Systems
+### Infrastructure Monitoring
+- **Real-time Metrics**: CPU, memory, disk usage across hosts
+- **Container Statistics**: Resource usage and performance monitoring
+- **Server Health**: Online/offline status with automatic detection
+- **Audit Logging**: Comprehensive action tracking
 
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              DEPLOYMENT STACK                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
+### Advanced Operations
+- **SSH Terminal**: Web-based SSH access to containers and hosts
+- **Server Cleanup**: Automated Docker cleanup with selective operations
+- **Image Management**: Docker image browsing, building, and registry push
+- **File Browser**: Container filesystem access
+- **Nginx Routing**: Automatic user-specific routing configuration
 
-Frontend: React + Vite + Tailwind CSS + TypeScript
-Backend: Flask + Python 3.9+ + MySQL + Docker SDK
-Agents: Flask + Docker SDK + Resource Monitoring
-Infrastructure: Docker + Docker Compose + Nginx + Ubuntu/Linux
+## Security Architecture
+
+### Authentication & Authorization
+- **Session Management**: Secure session tokens with expiration
+- **Role-Based Access**: Admin, QVP, and Regular user types
+- **Permission System**: Granular permission checks for all operations
+- **API Security**: Bearer token authentication for all endpoints
+- **Audit Trail**: Complete logging of all user actions
+
+### Network Security
+- **Agent Communication**: Secure HTTP API between backend and agents
+- **SSH Integration**: Secure shell access with credential management
+- **Port Isolation**: User-specific port allocations
+- **Nginx Proxy**: Reverse proxy for user service isolation
+
+## Database Schema
+
+### Core Tables
+- **users**: User accounts, roles, metadata, and container assignments
+- **user_sessions**: Active session management
+- **audit_logs**: Comprehensive action logging
+- **port_allocations**: Dynamic port assignment tracking
+- **registry_servers**: Docker registry configurations
+- **build_projects**: Build project definitions
+- **upload_servers**: Guest OS upload server configurations
+
+## Technology Stack
+
+### Frontend
+- React 18, TypeScript, Tailwind CSS, Vite
+- React Router, React Context API
+- Lucide React (icons), Recharts (charts)
+- shadcn-ui components
+
+### Backend
+- Flask, Python 3.9+, MySQL
+- Docker SDK, Paramiko (SSH), Requests
+- Session tokens, Bcrypt (password hashing)
+- Loguru (logging)
+
+### Infrastructure
+- Docker, Docker Compose
+- Nginx (reverse proxy)
+- Ubuntu/Linux (host OS)
+- NVIDIA Container Toolkit (GPU support)
+
+## Scalability Features
+
+### Horizontal Scaling
+- **Agent Distribution**: Add new Docker hosts with agent deployment
+- **Load Distribution**: Automatic server selection for new containers
+- **Resource Pooling**: Aggregate resource management across hosts
+
+### Performance Optimizations
+- **Caching**: Server resource caching (30s TTL)
+- **Concurrent Processing**: ThreadPoolExecutor for agent queries
+- **Connection Pooling**: Database connection management
+- **Timeout Management**: Configurable timeouts for agent communication
+- **Configuration Validation**: Startup checks to prevent runtime errors
