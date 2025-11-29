@@ -4,12 +4,23 @@ from monitoring_service import init_stats_routes, register_agent_with_manager
 from container_manager import init_backend_routes
 import toml
 from datetime import datetime
+import sys
 
 import os
 from dotenv import load_dotenv
+from loguru import logger
 
 # Load environment variables
 load_dotenv(".env", override=True)
+
+# Validate configuration before starting
+from config_validator import validate_agent_config, ConfigValidationError
+try:
+    validate_agent_config(strict=True)
+except ConfigValidationError as e:
+    logger.error(f"Agent configuration validation failed: {e}")
+    logger.error("Please fix the configuration issues and restart the agent.")
+    sys.exit(1)
 
 app = Flask(__name__)
 CORS(app)
