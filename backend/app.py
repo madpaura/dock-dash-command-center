@@ -1085,6 +1085,41 @@ def get_user_services():
                 'url': f"http://{mgmt_server}/user/{username}/terminal/",
                 'status': 'running' 
             }
+        elif real_container_status == 'running':
+            # Fallback: Container is running but nginx routes not configured
+            # Provide direct URLs using server IP and allocated ports
+            try:
+                server_ip = user_service._get_server_ip_from_assignment(server_assignment) if server_assignment else None
+                if server_ip:
+                    # Get port info from agent
+                    port_response = agent_service.query_agent_port_info(server_ip, container_name)
+                    if port_response and port_response.get('success'):
+                        port_info = port_response.get('port_info', {})
+                        code_port = port_info.get('code_port', 9000)
+                        jupyter_port = port_info.get('jupyter_port', code_port + 8)
+                        
+                        services['vscode'] = {
+                            'available': True,
+                            'url': f"http://{server_ip}:{code_port}/",
+                            'status': 'running'
+                        }
+                        services['jupyter'] = {
+                            'available': True,
+                            'url': f"http://{server_ip}:{jupyter_port}/",
+                            'status': 'running'
+                        }
+                        services['intellij'] = {
+                            'available': False,
+                            'url': None,
+                            'status': 'stopped'
+                        }
+                        services['terminal'] = {
+                            'available': False,
+                            'url': None,
+                            'status': 'stopped'
+                        }
+            except Exception as e:
+                logger.debug(f"Could not get direct service URLs for {username}: {e}")
         
         # Get server information for system stats
         server_assignment = metadata.get('server_assignment')

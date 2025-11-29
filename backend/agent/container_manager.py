@@ -60,26 +60,48 @@ class DockerContainerManager:
                     logger.error("Failed pulling image")
                     return None, f"Failed pulling image {image_name} Exception : {e}"
 
-            container = self.client.containers.run(
-                image=image_name,
-                name=container_name,
-                ports=ports,
-                volumes=volumes,
-                environment=environment,
-                command=command,
-                detach=detach,
-                cpu_count=cpu_count,
-                cpu_percent=cpu_percent,
-                mem_limit=memory_limit,
-                memswap_limit=memory_swap,
-                hostname=host_name,
-                # this can be optional, based on gpu enabled or not
-                runtime="nvidia",
-                privileged=True,
-                # IMPORTANT: Do NOT set remove=True - this causes container data loss on stop
-                # Container should persist so user data in volumes is retained
-                remove=False,
-            )
+            # Try with nvidia runtime first, fallback to no runtime if not available
+            try:
+                container = self.client.containers.run(
+                    image=image_name,
+                    name=container_name,
+                    ports=ports,
+                    volumes=volumes,
+                    environment=environment,
+                    command=command,
+                    detach=detach,
+                    cpu_count=cpu_count,
+                    cpu_percent=cpu_percent,
+                    mem_limit=memory_limit,
+                    memswap_limit=memory_swap,
+                    hostname=host_name,
+                    runtime="nvidia",
+                    privileged=True,
+                    # IMPORTANT: Do NOT set remove=True - this causes container data loss on stop
+                    # Container should persist so user data in volumes is retained
+                    remove=False,
+                )
+            except docker.errors.APIError as e:
+                if "runtime" in str(e).lower() and "nvidia" in str(e).lower():
+                    logger.warning("NVIDIA runtime not available, creating container without GPU support")
+                    container = self.client.containers.run(
+                        image=image_name,
+                        name=container_name,
+                        ports=ports,
+                        volumes=volumes,
+                        environment=environment,
+                        command=command,
+                        detach=detach,
+                        cpu_count=cpu_count,
+                        cpu_percent=cpu_percent,
+                        mem_limit=memory_limit,
+                        memswap_limit=memory_swap,
+                        hostname=host_name,
+                        privileged=True,
+                        remove=False,
+                    )
+                else:
+                    raise
             logger.success(f"Container created successfully: {container.name}")
             return container, "Success"
 
@@ -829,7 +851,19 @@ def init_backend_routes(app):
     @app.route("/api/containers/<string:container_id>/ports", methods=["GET"])
     def get_port_info(container_id):
         port_manager = PortManager()
-        new_ports = port_manager.get_allocated_ports(container_id)
+        
+        # Extract username from container_id (format: code-server-{username}-{hash})
+        # e.g., code-server-u1-bb82030dbc2bcaba -> u1
+        username = container_id
+        if container_id.startswith('code-server-'):
+            parts = container_id.replace('code-server-', '').split('-')
+            if parts:
+                username = parts[0]
+        
+        new_ports = port_manager.get_allocated_ports(username)
+        if not new_ports:
+            return jsonify({"success": False, "error": f"No ports allocated for {username}"}), 404
+            
         start_port = int(new_ports["start_port"])
         
         port_info = {
@@ -837,7 +871,8 @@ def init_backend_routes(app):
             "ssh_port": start_port + 1,
             "spice_port": start_port + 2,
             "fm_ui_port": start_port + 3,
-            "fm_port": start_port + 4
+            "fm_port": start_port + 4,
+            "jupyter_port": start_port + 8  # Jupyter is typically at offset 8
         }
         
         return jsonify({"success": True, "port_info": port_info})
